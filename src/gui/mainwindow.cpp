@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QFileDialog>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -148,8 +149,8 @@ void MainWindow::setupStatusBar() {
 void MainWindow::updateStatusBar() {
     updateVmStateLabel();
 
-    // TODO: read actual FPS from display
-    fps_label_->setText(tr("-- FPS"));
+    double fps = display_widget_ ? display_widget_->fps() : 0.0;
+    fps_label_->setText(tr("%1 FPS").arg(fps, 0, 'f', 1));
 
     // TODO: read actual memory usage from VM
     if (vm_) {

@@ -15,6 +15,13 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     setupUi();
 }
 
+SettingsDialog::SettingsDialog(const RexConfig& initial_config, QWidget* parent)
+    : QDialog(parent)
+{
+    setupUi();
+    loadConfig(initial_config);
+}
+
 // ---------------------------------------------------------------------------
 // UI construction
 // ---------------------------------------------------------------------------

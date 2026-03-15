@@ -49,6 +49,7 @@ class SettingsDialog : public QDialog {
 
 public:
     explicit SettingsDialog(QWidget* parent = nullptr);
+    SettingsDialog(const RexConfig& initial_config, QWidget* parent = nullptr);
     ~SettingsDialog() override = default;
 
     /// Load settings from a config struct into the UI controls
