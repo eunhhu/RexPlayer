@@ -296,4 +296,23 @@ bool DisplayWidget::event(QEvent* event) {
     return QWidget::event(event);
 }
 
+void DisplayWidget::setRotation(int degrees) {
+    // Normalize to 0, 90, 180, 270
+    degrees = ((degrees % 360) + 360) % 360;
+
+    if (degrees == 90 || degrees == 270) {
+        // Swap guest dimensions for landscape
+        setGuestResolution(guest_height_, guest_width_);
+    } else {
+        setGuestResolution(guest_width_, guest_height_);
+    }
+
+    recalcViewport();
+    update();
+}
+
+void DisplayWidget::injectKey(uint16_t keycode, bool pressed) {
+    emit keyInput(keycode, pressed);
+}
+
 } // namespace rex::gui

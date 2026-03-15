@@ -45,6 +45,12 @@ public:
     /// Set guest resolution (forwarded to input handler)
     void setGuestResolution(uint32_t width, uint32_t height);
 
+    /// Set display rotation (0, 90, 180, 270 degrees)
+    void setRotation(int degrees);
+
+    /// Inject a key event into the guest (Android key code)
+    void injectKey(uint16_t keycode, bool pressed);
+
     /// Get the viewport rectangle (the area where the guest is rendered)
     QRect viewport() const;
 
