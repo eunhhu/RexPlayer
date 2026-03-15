@@ -1,0 +1,44 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Rust
+middleware/target/
+middleware/Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Qt
+*.pro.user
+moc_*
+ui_*
+qrc_*
+
+# OS
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Android build artifacts
+android/out/
+
+# Third party build artifacts
+third_party/build/
+.omc/

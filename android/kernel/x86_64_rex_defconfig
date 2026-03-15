@@ -1,0 +1,87 @@
+# RexPlayer kernel config fragment for x86_64
+# Applied on top of the base x86_64 defconfig
+#
+# All virtio drivers are built-in (not modules) for faster boot
+
+# === Virtio Core ===
+CONFIG_VIRTIO=y
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_MMIO=y
+CONFIG_VIRTIO_MENU=y
+
+# === Block ===
+CONFIG_VIRTIO_BLK=y
+CONFIG_BLK_DEV=y
+
+# === Network ===
+CONFIG_VIRTIO_NET=y
+CONFIG_NET=y
+CONFIG_INET=y
+CONFIG_IPV6=y
+
+# === Console / Serial ===
+CONFIG_VIRTIO_CONSOLE=y
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+
+# === GPU ===
+CONFIG_DRM=y
+CONFIG_DRM_VIRTIO_GPU=y
+
+# === Input ===
+CONFIG_VIRTIO_INPUT=y
+CONFIG_INPUT=y
+CONFIG_INPUT_EVDEV=y
+
+# === Vsock ===
+CONFIG_VSOCKETS=y
+CONFIG_VIRTIO_VSOCKETS=y
+
+# === Sound ===
+CONFIG_SND_VIRTIO=y
+CONFIG_SOUND=y
+CONFIG_SND=y
+
+# === Balloon ===
+CONFIG_VIRTIO_BALLOON=y
+
+# === Filesystem ===
+CONFIG_EXT4_FS=y
+CONFIG_EXT4_FS_POSIX_ACL=y
+CONFIG_FUSE_FS=y
+
+# === Android requirements ===
+CONFIG_ANDROID=y
+CONFIG_ANDROID_BINDER_IPC=y
+CONFIG_ANDROID_BINDERFS=y
+CONFIG_ASHMEM=y
+CONFIG_STAGING=y
+CONFIG_ION=y
+
+# === Namespaces (for Android containers) ===
+CONFIG_NAMESPACES=y
+CONFIG_UTS_NS=y
+CONFIG_IPC_NS=y
+CONFIG_PID_NS=y
+CONFIG_NET_NS=y
+CONFIG_CGROUPS=y
+CONFIG_CGROUP_CPUACCT=y
+CONFIG_CGROUP_SCHED=y
+CONFIG_CGROUP_FREEZER=y
+
+# === Performance ===
+CONFIG_NO_HZ_FULL=y
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_PREEMPT=y
+CONFIG_KSM=y
+CONFIG_TRANSPARENT_HUGEPAGE=y
+
+# === Disable unused hardware ===
+# CONFIG_USB is not set
+# CONFIG_PCMCIA is not set
+# CONFIG_WIRELESS is not set
+# CONFIG_WLAN is not set
+# CONFIG_HAMRADIO is not set
+# CONFIG_INFINIBAND is not set
+# CONFIG_ISDN is not set
+# CONFIG_ATM_DRIVERS is not set

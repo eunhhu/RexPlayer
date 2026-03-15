@@ -1,0 +1,12 @@
+[package]
+name = "rex-ffi"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cxx.workspace = true
+rex-devices = { path = "../rex-devices" }
+tracing.workspace = true
+
+[build-dependencies]
+cxx-build.workspace = true

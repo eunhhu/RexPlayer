@@ -1,0 +1,47 @@
+# RexPlayer init configuration
+# Runs as a vendor init script inside the Android guest
+
+# Set hostname
+on boot
+    setprop net.hostname rexplayer
+
+# Frida Server service
+# Listens on vsock:27042 for host connections
+service frida-server /system/bin/frida-server -l vsock:27042
+    class main
+    user root
+    group root
+    disabled
+    oneshot
+
+# Start Frida after boot completes
+on property:sys.boot_completed=1
+    start frida-server
+
+# Virtio vsock permissions
+on boot
+    chmod 0666 /dev/vsock
+    chown system system /dev/vsock
+
+# Virtio GPU permissions
+on boot
+    chmod 0666 /dev/dri/card0
+    chmod 0666 /dev/dri/renderD128
+    chown system graphics /dev/dri/card0
+    chown system graphics /dev/dri/renderD128
+
+# Virtio input permissions
+on boot
+    chmod 0660 /dev/input/event0
+    chmod 0660 /dev/input/event1
+    chown system input /dev/input/event0
+    chown system input /dev/input/event1
+
+# Network — virtio-net (eth0)
+service dhcpclient /system/bin/dhcpclient -i eth0
+    class main
+    disabled
+    oneshot
+
+on property:net.eth0.link.up=true
+    start dhcpclient

@@ -1,0 +1,11 @@
+[package]
+name = "rex-frida"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
