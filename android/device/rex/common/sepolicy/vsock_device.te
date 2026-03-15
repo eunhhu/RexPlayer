@@ -1,0 +1,9 @@
+# SELinux policy for vsock device
+
+type vsock_device, dev_type;
+
+# Allow system_server to use vsock (for ADB)
+allow system_server vsock_device:chr_file rw_file_perms;
+
+# Allow init to set permissions
+allow init vsock_device:chr_file setattr;

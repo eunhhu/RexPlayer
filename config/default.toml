@@ -1,0 +1,21 @@
+# RexPlayer Default Configuration
+# Copy to ~/.config/rexplayer/config.toml and customize
+
+[vm]
+vcpus = 2
+ram_mb = 2048
+system_image = "system.img"
+# data_image = "userdata.img"
+# kernel = "bzImage"
+# initrd = "initrd.img"
+kernel_cmdline = "androidboot.hardware=rex console=ttyS0 androidboot.selinux=permissive"
+
+[display]
+width = 1080
+height = 1920
+dpi = 320
+
+[frida]
+enabled = true
+auto_update = true
+port = 27042

@@ -1,0 +1,8 @@
+# RexPlayer SELinux file contexts
+
+/system/bin/frida-server    u:object_r:frida_exec:s0
+/dev/vsock                  u:object_r:vsock_device:s0
+/dev/vda                    u:object_r:vd_device:s0
+/dev/vdb                    u:object_r:vd_device:s0
+/dev/vdc                    u:object_r:vd_device:s0
+/dev/vdd                    u:object_r:vd_device:s0

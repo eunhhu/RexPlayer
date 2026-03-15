@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RexPlayer resource overlay for framework configuration -->
+<resources>
+    <!-- Enable ethernet -->
+    <bool name="config_ethernet_available">true</bool>
+
+    <!-- Default screen orientation (portrait) -->
+    <integer name="config_defaultDeviceOrientation">0</integer>
+
+    <!-- Screen brightness defaults -->
+    <integer name="config_screenBrightnessSettingDefault">200</integer>
+    <integer name="config_screenBrightnessSettingMaximum">255</integer>
+    <integer name="config_screenBrightnessSettingMinimum">10</integer>
+
+    <!-- Disable auto-brightness (no light sensor) -->
+    <bool name="config_automatic_brightness_available">false</bool>
+
+    <!-- No hardware navigation bar (use soft keys) -->
+    <bool name="config_showNavigationBar">true</bool>
+
+    <!-- Disable features not available in VM -->
+    <bool name="config_hasRecents">true</bool>
+    <bool name="config_dreamsSupported">false</bool>
+
+    <!-- Network -->
+    <string-array name="networkAttributes">
+        <item>ethernet,9,9,0,-1,true</item>
+    </string-array>
+</resources>

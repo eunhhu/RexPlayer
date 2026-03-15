@@ -16,6 +16,7 @@ option(REX_ENABLE_WHPX  "Enable WHPX hypervisor backend (Windows)" OFF)
 option(REX_ENABLE_HVF   "Enable HVF hypervisor backend (macOS)"   OFF)
 option(REX_ENABLE_TESTS "Build tests"                              ON)
 option(REX_ENABLE_GPU   "Enable GPU acceleration"                  OFF)
+option(REX_ENABLE_GUI   "Build Qt GUI"                             ON)
 
 # Auto-detect hypervisor based on host OS
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -78,6 +79,8 @@ add_library(rex_vmm STATIC
     src/vmm/memory_manager.cpp
     src/vmm/device_manager.cpp
     src/vmm/boot_x86.cpp
+    src/vmm/boot_arm64.cpp
+    src/vmm/snapshot.cpp
 )
 target_include_directories(rex_vmm PUBLIC src/vmm/include)
 target_link_libraries(rex_vmm PUBLIC rex_hal)
@@ -103,6 +106,47 @@ add_library(rex_platform STATIC
     src/platform/platform_${REX_PLATFORM}.cpp
 )
 target_include_directories(rex_platform PUBLIC src/platform)
+
+# --- Qt GUI ---
+if(REX_ENABLE_GUI)
+    find_package(Qt6 COMPONENTS Widgets Gui Core QUIET)
+    if(Qt6_FOUND)
+        set(CMAKE_AUTOMOC ON)
+        set(CMAKE_AUTORCC ON)
+        set(CMAKE_AUTOUIC ON)
+
+        add_executable(rexplayer
+            src/gui/main.cpp
+            src/gui/mainwindow.cpp
+            src/gui/display_widget.cpp
+            src/gui/input_handler.cpp
+            src/gui/settings_dialog.cpp
+        )
+        target_link_libraries(rexplayer PRIVATE
+            rex_vmm
+            rex_devices_legacy
+            rex_gpu
+            rex_platform
+            Qt6::Widgets
+            Qt6::Gui
+            Qt6::Core
+        )
+        target_include_directories(rexplayer PRIVATE src/gui)
+
+        # macOS: create app bundle
+        if(APPLE)
+            set_target_properties(rexplayer PROPERTIES
+                MACOSX_BUNDLE TRUE
+                MACOSX_BUNDLE_BUNDLE_NAME "RexPlayer"
+                MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+            )
+        endif()
+
+        message(STATUS "Qt GUI: enabled (Qt ${Qt6_VERSION})")
+    else()
+        message(STATUS "Qt GUI: disabled (Qt6 not found)")
+    endif()
+endif()
 
 # --- Tests ---
 if(REX_ENABLE_TESTS)

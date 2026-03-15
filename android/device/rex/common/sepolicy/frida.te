@@ -1,0 +1,17 @@
+# SELinux policy for Frida Server
+# In development/research mode, Frida runs permissive
+
+type frida, domain;
+type frida_exec, exec_type, file_type, system_file_type;
+
+init_daemon_domain(frida)
+
+# Frida needs broad access for instrumentation
+permissive frida;
+
+# Allow vsock communication
+allow frida vsock_device:chr_file rw_file_perms;
+
+# Allow ptrace (required for Frida's core functionality)
+allow frida self:capability { sys_ptrace };
+allow frida domain:process ptrace;
