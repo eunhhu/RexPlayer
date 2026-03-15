@@ -12,6 +12,7 @@ pub mod virtio_input;
 pub mod virtio_balloon;
 pub mod virtio_snd;
 pub mod virtio_mmio;
+pub mod virtqueue;
 
 use thiserror::Error;
 
