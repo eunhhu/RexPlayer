@@ -144,10 +144,26 @@ bool handle_psci_hvc(HvfArm64VcpuImpl& impl) {
             // PSCI 1.0
             ret_val = (1 << 16) | 0; // major=1, minor=0
             break;
-        case PSCI_FEATURES:
-            // Report supported: CPU_ON, CPU_OFF, SYSTEM_OFF, SYSTEM_RESET
-            ret_val = PSCI_SUCCESS;
+        case PSCI_FEATURES: {
+            // X1 contains the function ID to query
+            uint64_t x1 = 0;
+            hv_vcpu_get_reg(impl.handle, HV_REG_X1, &x1);
+            uint32_t query_id = static_cast<uint32_t>(x1);
+            switch (query_id) {
+                case PSCI_VERSION:
+                case PSCI_CPU_OFF:
+                case PSCI_CPU_ON:
+                case PSCI_SYSTEM_OFF:
+                case PSCI_SYSTEM_RESET:
+                case PSCI_CPU_SUSPEND:
+                    ret_val = PSCI_SUCCESS;
+                    break;
+                default:
+                    ret_val = PSCI_NOT_SUPPORTED;
+                    break;
+            }
             break;
+        }
         case PSCI_CPU_ON:
             // Single vCPU — report already on
             ret_val = PSCI_ALREADY_ON;
@@ -182,8 +198,13 @@ bool handle_psci_hvc(HvfArm64VcpuImpl& impl) {
                 func_id, static_cast<uint64_t>(ret_val), pc, cur_hcr);
     }
 
+    // SMCCC: return values in X0-X3
+    // NOTE: HVF already advances PC past the HVC instruction
     hv_vcpu_set_reg(impl.handle, HV_REG_X0, static_cast<uint64_t>(ret_val));
-    hv_vcpu_set_reg(impl.handle, HV_REG_PC, pc + 4);
+    hv_vcpu_set_reg(impl.handle, HV_REG_X1, 0);
+    hv_vcpu_set_reg(impl.handle, HV_REG_X2, 0);
+    hv_vcpu_set_reg(impl.handle, HV_REG_X3, 0);
+    // Do NOT advance PC — HVF does it automatically for HVC/SMC traps
     return true;
 }
 
