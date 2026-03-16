@@ -2,6 +2,7 @@
 add_executable(rex_hal_tests
     hal_tests/test_types.cpp
     hal_tests/test_device_manager.cpp
+    hal_tests/test_boot_arm64.cpp
     hal_tests/test_kvm_integration.cpp
     hal_tests/test_memory_manager.cpp
 )

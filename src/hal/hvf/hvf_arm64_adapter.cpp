@@ -35,6 +35,23 @@ struct HvfArm64VcpuImpl {
     }
 };
 
+namespace {
+
+constexpr uint64_t kSmcccRetNotSupported = ~0ULL;
+
+bool complete_trapped_firmware_call(HvfArm64VcpuImpl& impl) {
+    uint64_t pc = 0;
+    if (hv_vcpu_get_reg(impl.handle, HV_REG_PC, &pc) != HV_SUCCESS) {
+        return false;
+    }
+    if (hv_vcpu_set_reg(impl.handle, HV_REG_X0, kSmcccRetNotSupported) != HV_SUCCESS) {
+        return false;
+    }
+    return hv_vcpu_set_reg(impl.handle, HV_REG_PC, pc + 4) == HV_SUCCESS;
+}
+
+} // namespace
+
 // ============================================================================
 // HvfArm64VcpuAdapter
 // ============================================================================
@@ -56,54 +73,70 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
     if (!impl_ || !impl_->valid)
         return std::unexpected(HalError::NotInitialized);
 
-    hv_return_t ret = hv_vcpu_run(impl_->handle);
-    if (ret != HV_SUCCESS)
-        return std::unexpected(HalError::VcpuRunFailed);
+    for (;;) {
+        hv_return_t ret = hv_vcpu_run(impl_->handle);
+        if (ret != HV_SUCCESS)
+            return std::unexpected(HalError::VcpuRunFailed);
 
-    VcpuExit exit{};
-    auto* ei = impl_->exit_info;
+        VcpuExit exit{};
+        auto* ei = impl_->exit_info;
 
-    switch (ei->reason) {
-        case HV_EXIT_REASON_EXCEPTION: {
-            uint32_t syndrome = ei->exception.syndrome;
-            uint8_t ec = (syndrome >> 26) & 0x3F;
+        switch (ei->reason) {
+            case HV_EXIT_REASON_EXCEPTION: {
+                uint32_t syndrome = ei->exception.syndrome;
+                uint8_t ec = (syndrome >> 26) & 0x3F;
 
-            if (ec == 0x24 || ec == 0x25) { // Data abort → MMIO
-                exit.reason = VcpuExit::Reason::MmioAccess;
-                exit.mmio.address = ei->exception.physical_address;
-                bool isv = (syndrome >> 24) & 1;
-                bool wnr = (syndrome >> 6) & 1;
-                uint8_t sas = (syndrome >> 22) & 3;
-                exit.mmio.size = isv ? static_cast<uint8_t>(1 << sas) : 4;
-                exit.mmio.is_write = wnr;
-                if (wnr && isv) {
-                    uint32_t srt = (syndrome >> 16) & 0x1F;
-                    uint64_t val = 0;
-                    hv_vcpu_get_reg(impl_->handle,
-                        static_cast<hv_reg_t>(HV_REG_X0 + srt), &val);
-                    exit.mmio.data = val;
+                if (ec == 0x24 || ec == 0x25) { // Data abort → MMIO
+                    exit.reason = VcpuExit::Reason::MmioAccess;
+                    exit.mmio.address = ei->exception.physical_address;
+                    bool isv = (syndrome >> 24) & 1;
+                    bool wnr = (syndrome >> 6) & 1;
+                    uint8_t sas = (syndrome >> 22) & 3;
+                    exit.mmio.size = isv ? static_cast<uint8_t>(1 << sas) : 4;
+                    exit.mmio.is_write = wnr;
+                    if (wnr && isv) {
+                        uint32_t srt = (syndrome >> 16) & 0x1F;
+                        uint64_t val = 0;
+                        if (hv_vcpu_get_reg(
+                                impl_->handle,
+                                static_cast<hv_reg_t>(HV_REG_X0 + srt),
+                                &val) != HV_SUCCESS) {
+                            return std::unexpected(HalError::InternalError);
+                        }
+                        exit.mmio.data = val;
+                    }
+                } else if (ec == 0x01) { // WFI/WFE → Hlt
+                    exit.reason = VcpuExit::Reason::Hlt;
+                } else if (ec == 0x16 || ec == 0x17) { // HVC/SMC
+                    // Treat trapped firmware calls as "not supported" and
+                    // advance past the instruction so guests are not killed
+                    // before the VMM grows real PSCI/SMCCC handling.
+                    if (!complete_trapped_firmware_call(*impl_)) {
+                        return std::unexpected(HalError::InternalError);
+                    }
+                    continue;
+                } else {
+                    exit.reason = VcpuExit::Reason::Unknown;
                 }
-            } else if (ec == 0x01) { // WFI/WFE → Hlt
-                exit.reason = VcpuExit::Reason::Hlt;
-            } else if (ec == 0x16 || ec == 0x17) { // HVC/SMC
-                exit.reason = VcpuExit::Reason::Shutdown;
-            } else {
-                exit.reason = VcpuExit::Reason::Unknown;
+                break;
             }
-            break;
+
+            case HV_EXIT_REASON_VTIMER_ACTIVATED:
+                exit.reason = VcpuExit::Reason::IrqWindowOpen;
+                if (hv_vcpu_set_vtimer_mask(impl_->handle, true) != HV_SUCCESS) {
+                    return std::unexpected(HalError::InternalError);
+                }
+                break;
+            case HV_EXIT_REASON_CANCELED:
+                exit.reason = VcpuExit::Reason::Unknown;
+                break;
+            default:
+                exit.reason = VcpuExit::Reason::Unknown;
+                break;
         }
-        case HV_EXIT_REASON_VTIMER_ACTIVATED:
-            exit.reason = VcpuExit::Reason::IrqWindowOpen;
-            hv_vcpu_set_vtimer_mask(impl_->handle, true);
-            break;
-        case HV_EXIT_REASON_CANCELED:
-            exit.reason = VcpuExit::Reason::Unknown;
-            break;
-        default:
-            exit.reason = VcpuExit::Reason::Unknown;
-            break;
+
+        return exit;
     }
-    return exit;
 }
 
 HalResult<X86Regs> HvfArm64VcpuAdapter::get_regs() const {

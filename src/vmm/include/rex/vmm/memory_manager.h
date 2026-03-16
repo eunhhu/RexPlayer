@@ -8,8 +8,8 @@ namespace rex::vmm {
 
 /// High-level memory manager for the VM
 ///
-/// Allocates host memory (via mmap/VirtualAlloc) and maps it into the guest
-/// physical address space through the HAL's IMemoryManager.
+/// Allocates host memory and maps it into the guest physical address space
+/// through the HAL's IMemoryManager.
 class MemoryManager {
 public:
     explicit MemoryManager(rex::hal::IMemoryManager& hal_mem);
@@ -35,14 +35,22 @@ public:
     rex::hal::MemSize total_allocated() const { return total_allocated_; }
 
 private:
+    enum class AllocationBackend : uint8_t {
+        VirtualAlloc,
+        Mmap,
+        PosixMemalign,
+    };
+
     struct Allocation {
         uint32_t slot;
         rex::hal::GPA gpa;
         rex::hal::MemSize size;
         void* host_ptr;
+        AllocationBackend backend;
     };
 
     const Allocation* find_allocation(rex::hal::GPA gpa) const;
+    static void release_allocation(const Allocation& alloc);
 
     rex::hal::IMemoryManager& hal_mem_;
     std::vector<Allocation> allocations_;
