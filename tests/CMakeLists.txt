@@ -13,6 +13,7 @@ target_link_libraries(rex_hal_tests PRIVATE
 )
 target_include_directories(rex_hal_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/devices
+    ${CMAKE_SOURCE_DIR}/src/hal
 )
 
 include(GoogleTest)
