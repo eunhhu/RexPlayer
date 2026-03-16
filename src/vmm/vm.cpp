@@ -157,8 +157,35 @@ void Vm::vcpu_loop(rex::hal::IVcpu* vcpu) {
                 break;
             }
             case rex::hal::VcpuExit::Reason::MmioAccess: {
-                if (!device_mgr_.dispatch_mmio(exit.mmio)) {
-                    // Unhandled MMIO
+                static uint64_t mmio_count = 0;
+                if (++mmio_count <= 20) {
+                    fprintf(stderr, "MMIO %s addr=0x%llx size=%u data=0x%llx\n",
+                            exit.mmio.is_write ? "W" : "R",
+                            exit.mmio.address, exit.mmio.size,
+                            exit.mmio.data);
+                }
+                // PL011 UART at 0x09000000 — ARM64 Linux console
+                constexpr uint64_t PL011_BASE = 0x09000000;
+                constexpr uint64_t PL011_END  = 0x09001000;
+
+                if (exit.mmio.address >= PL011_BASE && exit.mmio.address < PL011_END) {
+                    uint32_t offset = static_cast<uint32_t>(exit.mmio.address - PL011_BASE);
+                    if (exit.mmio.is_write && offset == 0x00) {
+                        // UARTDR — data register: print character
+                        char c = static_cast<char>(exit.mmio.data & 0xFF);
+                        fputc(c, stderr);
+                    } else if (!exit.mmio.is_write) {
+                        // PL011 register reads
+                        switch (offset) {
+                            case 0x18: // UARTFR — flags: TX empty, RX empty
+                                exit.mmio.data = (1 << 4) | (1 << 7); // TXFE | RXFE (ready)
+                                break;
+                            default:
+                                exit.mmio.data = 0;
+                                break;
+                        }
+                    }
+                } else if (!device_mgr_.dispatch_mmio(exit.mmio)) {
                     if (!exit.mmio.is_write) {
                         exit.mmio.data = 0;
                     }
@@ -166,8 +193,7 @@ void Vm::vcpu_loop(rex::hal::IVcpu* vcpu) {
                 break;
             }
             case rex::hal::VcpuExit::Reason::Hlt:
-                // Guest executed HLT — wait for interrupt
-                // In a real implementation, we'd wait on an eventfd/signal
+                // Guest executed WFI/HLT — wait for interrupt
                 std::this_thread::yield();
                 break;
             case rex::hal::VcpuExit::Reason::Shutdown:

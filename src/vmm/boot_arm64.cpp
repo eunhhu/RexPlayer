@@ -227,6 +227,18 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.end_node();
     builder.end_node();
 
+    // PL011 UART at 0x09000000 — console output
+    builder.begin_node("pl011@9000000");
+    builder.property_string("compatible", "arm,pl011\0arm,primecell");
+    auto uart_reg = cells_for_u64(0x09000000);
+    auto uart_size = cells_for_u64(0x1000);
+    uart_reg.insert(uart_reg.end(), uart_size.begin(), uart_size.end());
+    builder.property_cells("reg", uart_reg);
+    builder.end_node();
+
+    // stdout-path for kernel console
+    // (reopen chosen to add stdout-path — or we set it in cmdline)
+
     builder.end_node();
     return builder.build();
 }

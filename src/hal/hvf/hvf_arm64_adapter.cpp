@@ -47,8 +47,25 @@ struct HvfArm64VcpuImpl {
         }
         created = true;
 
+        // Configure HCR_EL2 for proper guest trapping
+        uint64_t hcr = 0;
+        hv_vcpu_get_sys_reg(handle, HV_SYS_REG_HCR_EL2, &hcr);
+        hcr |= (1ULL << 0);   // VM  — enable stage-2 translation (MMIO traps)
+        hcr |= (1ULL << 1);   // SWIO — set/way invalidation override
+        hcr |= (1ULL << 3);   // FMO — route FIQ to EL2
+        hcr |= (1ULL << 4);   // IMO — route IRQ to EL2
+        hcr |= (1ULL << 31);  // RW  — EL1 is AArch64
+        hcr |= (1ULL << 27);  // TWI — trap WFI to EL2
+        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_HCR_EL2, hcr);
+
+        fprintf(stderr, "vcpu %u: created on thread, HCR_EL2=0x%llx\n", id, hcr);
+
         // Apply any pending register state
+        fprintf(stderr, "vcpu %u: has_pending_regs=%d has_pending_sregs=%d\n",
+                id, has_pending_regs, has_pending_sregs);
         if (has_pending_regs) {
+            fprintf(stderr, "vcpu %u: applying pending regs PC=0x%llx CPSR=0x%llx X0=0x%llx\n",
+                    id, pending_regs.rip, pending_regs.rflags, pending_regs.rax);
             apply_regs(pending_regs);
             has_pending_regs = false;
         }
@@ -128,11 +145,26 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
 
     for (;;) {
         hv_return_t ret = hv_vcpu_run(impl_->handle);
-        if (ret != HV_SUCCESS)
+        if (ret != HV_SUCCESS) {
+            fprintf(stderr, "hv_vcpu_run failed: %d\n", ret);
             return std::unexpected(HalError::VcpuRunFailed);
+        }
 
         VcpuExit exit{};
         auto* ei = impl_->exit_info;
+
+        static uint64_t exit_count = 0;
+        if (++exit_count <= 30) {
+            uint64_t pc = 0;
+            hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
+            fprintf(stderr, "vcpu exit #%llu: reason=%d pc=0x%llx", exit_count, ei->reason, pc);
+            if (ei->reason == HV_EXIT_REASON_EXCEPTION) {
+                fprintf(stderr, " syndrome=0x%x ec=0x%x",
+                        ei->exception.syndrome,
+                        (ei->exception.syndrome >> 26) & 0x3F);
+            }
+            fprintf(stderr, "\n");
+        }
 
         switch (ei->reason) {
             case HV_EXIT_REASON_EXCEPTION: {
@@ -150,14 +182,14 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                     if (wnr && isv) {
                         uint32_t srt = (syndrome >> 16) & 0x1F;
                         uint64_t val = 0;
-                        if (hv_vcpu_get_reg(
-                                impl_->handle,
-                                static_cast<hv_reg_t>(HV_REG_X0 + srt),
-                                &val) != HV_SUCCESS) {
-                            return std::unexpected(HalError::InternalError);
-                        }
+                        hv_vcpu_get_reg(impl_->handle,
+                            static_cast<hv_reg_t>(HV_REG_X0 + srt), &val);
                         exit.mmio.data = val;
                     }
+                    // Advance PC past the faulting instruction (4 bytes for ARM64)
+                    uint64_t pc = 0;
+                    hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
+                    hv_vcpu_set_reg(impl_->handle, HV_REG_PC, pc + 4);
                 } else if (ec == 0x01) { // WFI/WFE → Hlt
                     exit.reason = VcpuExit::Reason::Hlt;
                 } else if (ec == 0x16 || ec == 0x17) { // HVC/SMC
