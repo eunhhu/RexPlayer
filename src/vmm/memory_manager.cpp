@@ -35,9 +35,9 @@ rex::hal::HalResult<void> MemoryManager::add_ram(rex::hal::GPA gpa, rex::hal::Me
         return std::unexpected(rex::hal::HalError::OutOfMemory);
     }
 #else
-    host_ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-    if (host_ptr == MAP_FAILED) {
+    // Use 16KB alignment for Apple Silicon HVF compatibility
+    size_t alignment = 16384;
+    if (posix_memalign(&host_ptr, alignment, size) != 0) {
         return std::unexpected(rex::hal::HalError::OutOfMemory);
     }
 

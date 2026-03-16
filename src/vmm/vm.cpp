@@ -74,10 +74,14 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
 
     // Set up direct kernel boot on the BSP (vCPU 0)
     if (!config.boot.kernel_path.empty()) {
+#if defined(__aarch64__)
+        auto boot_result = setup_direct_boot_arm64(*vcpus_[0], *mem_mgr_, config.boot);
+#else
         if (looks_like_arm64_kernel(config.boot.kernel_path)) {
             return std::unexpected(rex::hal::HalError::NotSupported);
         }
         auto boot_result = setup_direct_boot_x86(*vcpus_[0], *mem_mgr_, config.boot);
+#endif
         if (!boot_result) return boot_result;
     }
 

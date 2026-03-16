@@ -12,10 +12,10 @@ namespace rex::vmm {
 // - Device tree blob (DTB) at a 64-byte aligned address
 // - x0 = DTB physical address, x1-x3 = 0
 
-static constexpr rex::hal::GPA RAM_BASE          = 0x40000000; // 1 GB
-static constexpr rex::hal::GPA KERNEL_LOAD_ADDR  = 0x40080000; // RAM + 512KB
-static constexpr rex::hal::GPA DTB_LOAD_ADDR     = 0x44000000; // RAM + 64MB
-static constexpr rex::hal::GPA INITRD_LOAD_ADDR  = 0x48000000; // RAM + 128MB
+static constexpr rex::hal::GPA RAM_BASE          = 0x0;       // GPA 0
+static constexpr rex::hal::GPA KERNEL_LOAD_ADDR  = 0x80000;   // RAM + 512KB
+static constexpr rex::hal::GPA DTB_LOAD_ADDR     = 0x4000000; // RAM + 64MB
+static constexpr rex::hal::GPA INITRD_LOAD_ADDR  = 0x8000000; // RAM + 128MB
 
 // ARM64 Image header magic
 static constexpr uint32_t ARM64_MAGIC = 0x644D5241; // "ARM\x64"
@@ -86,16 +86,15 @@ rex::hal::HalResult<void> setup_direct_boot_arm64(
         return std::unexpected(rex::hal::HalError::InvalidParameter);
     }
 
-    // 2. Verify ARM64 Image magic
-    if (kernel.size() < ARM64_MAGIC_OFFSET + 4) {
-        return std::unexpected(rex::hal::HalError::InvalidParameter);
+    // 2. Check ARM64 Image magic (optional — allow raw binaries)
+    bool is_linux_image = false;
+    if (kernel.size() >= ARM64_MAGIC_OFFSET + 4) {
+        uint32_t magic = 0;
+        memcpy(&magic, &kernel[ARM64_MAGIC_OFFSET], 4);
+        is_linux_image = (magic == ARM64_MAGIC);
     }
-
-    uint32_t magic = 0;
-    memcpy(&magic, &kernel[ARM64_MAGIC_OFFSET], 4);
-    if (magic != ARM64_MAGIC) {
-        return std::unexpected(rex::hal::HalError::InvalidParameter);
-    }
+    // Raw binaries (no magic) are loaded directly at KERNEL_LOAD_ADDR
+    (void)is_linux_image;
 
     // 3. Load kernel at KERNEL_LOAD_ADDR
     auto write_result = mem.write(KERNEL_LOAD_ADDR, kernel.data(), kernel.size());
@@ -130,15 +129,20 @@ rex::hal::HalResult<void> setup_direct_boot_arm64(
     //   x3 = 0 (reserved)
     //   PC = kernel entry point
     //
-    // Note: ARM64 registers are set differently than x86.
-    // The IVcpu interface currently defines x86 registers only.
-    // ARM64 support will be added to the IVcpu interface in Phase 4
-    // when we implement the HVF ARM64 backend for Apple Silicon.
-    //
-    // For now, this function prepares the memory layout.
-    // The actual register setup will be done by the ARM64-specific vCPU.
+    // Set ARM64 registers via the IVcpu adapter:
+    //   rax (X0) = DTB address
+    //   rip (PC) = kernel entry point
+    //   rflags (CPSR) = EL1h mode (0x3C5)
+    rex::hal::X86Regs regs{};
+    regs.rax = DTB_LOAD_ADDR;  // X0 = DTB address
+    regs.rbx = 0;              // X1 = 0
+    regs.rcx = 0;              // X2 = 0
+    regs.rdx = 0;              // X3 = 0
+    regs.rip = KERNEL_LOAD_ADDR;  // PC = kernel entry
+    regs.rflags = 0x3C5;       // CPSR = EL1h, DAIF masked
 
-    (void)vcpu; // Will be used when ARM64 IVcpu is implemented
+    auto regs_result = vcpu.set_regs(regs);
+    if (!regs_result) return regs_result;
 
     return {};
 }

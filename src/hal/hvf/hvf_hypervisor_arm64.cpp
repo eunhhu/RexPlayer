@@ -5,6 +5,11 @@
 #include "rex/hal/memory.h"
 
 #include <Hypervisor/hv.h>
+#include <Hypervisor/hv_vcpu.h>
+#include <Hypervisor/hv_vcpu_config.h>
+#include <Hypervisor/hv_vcpu_types.h>
+#include <Hypervisor/hv_vm.h>
+#include <Hypervisor/hv_vm_types.h>
 #include <sys/mman.h>
 #include <cstring>
 #include <vector>
