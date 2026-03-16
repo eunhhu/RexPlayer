@@ -18,6 +18,7 @@
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <copyfile.h>
+#include <sys/clonefile.h>
 #endif
 
 namespace fs = std::filesystem;

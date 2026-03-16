@@ -4,7 +4,7 @@
 
 #ifdef __linux__
 
-#include "hal/kvm/kvm_hypervisor.h"
+#include "kvm/kvm_hypervisor.h"
 #include <sys/mman.h>
 #include <cstring>
 
