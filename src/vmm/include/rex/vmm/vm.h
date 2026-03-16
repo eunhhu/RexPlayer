@@ -59,8 +59,20 @@ public:
 
     /// Access the memory manager
     MemoryManager& memory_manager() { return *mem_mgr_; }
+    const MemoryManager& memory_manager() const { return *mem_mgr_; }
+
+    /// Access vCPUs (for snapshot save/restore)
+    const std::vector<std::unique_ptr<rex::hal::IVcpu>>& vcpus() const { return vcpus_; }
+    std::vector<std::unique_ptr<rex::hal::IVcpu>>& vcpus() { return vcpus_; }
+
+    /// Get the VM creation config
+    const VmCreateConfig& config() const { return config_; }
+
+    /// Access the hypervisor (for snapshot restore — creating new vCPUs, etc.)
+    rex::hal::IHypervisor* hypervisor() { return hypervisor_.get(); }
 
 private:
+    friend class SnapshotManager;
     /// vCPU thread entry point
     void vcpu_loop(rex::hal::IVcpu* vcpu);
 
