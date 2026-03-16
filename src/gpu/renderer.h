@@ -3,9 +3,8 @@
 #include <cstdint>
 #include <cstddef>
 #include <memory>
-#include <span>
-#include <expected>
 #include <string>
+#include "rex/hal/types.h" // for std::expected polyfill
 
 namespace rex::gpu {
 
