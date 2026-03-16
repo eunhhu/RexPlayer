@@ -19,6 +19,10 @@ MainWindow::MainWindow(QWidget* parent)
     // Central display widget
     display_widget_ = new DisplayWidget(this);
     setCentralWidget(display_widget_);
+    connect(display_widget_, &DisplayWidget::touchInput,
+            this, &MainWindow::onGuestTouchInput);
+    connect(display_widget_, &DisplayWidget::keyInput,
+            this, &MainWindow::onGuestKeyInput);
 
     setupMenuBar();
     setupToolBar();
@@ -208,10 +212,7 @@ void MainWindow::pauseVm() {
 }
 
 void MainWindow::resetVm() {
-    if (!vm_) return;
-    stopVm();
-    // Re-create would go here
-    updateVmStateLabel();
+    showUnavailableFeature(tr("VM reset"));
 }
 
 // ============================================================================
@@ -219,12 +220,7 @@ void MainWindow::resetVm() {
 // ============================================================================
 
 void MainWindow::installApk() {
-    QString path = QFileDialog::getOpenFileName(
-        this, tr("Install APK"), QString(), tr("APK Files (*.apk)"));
-    if (path.isEmpty()) return;
-
-    // TODO: push APK to guest via adb over vsock
-    statusBar()->showMessage(tr("Installing %1...").arg(path), 5000);
+    showUnavailableFeature(tr("APK installation"));
 }
 
 void MainWindow::takeScreenshot() {
@@ -241,18 +237,11 @@ void MainWindow::takeScreenshot() {
 }
 
 void MainWindow::startScreenRecord() {
-    recording_ = !recording_;
-    if (recording_) {
-        statusBar()->showMessage(tr("Recording started..."));
-    } else {
-        statusBar()->showMessage(tr("Recording stopped"), 3000);
-    }
+    showUnavailableFeature(tr("Screen recording"));
 }
 
 void MainWindow::openFridaConsole() {
-    // TODO: open Frida console window connected via vsock:27042
-    QMessageBox::information(this, tr("Frida"),
-        tr("Frida Console will connect to vsock:27042"));
+    showUnavailableFeature(tr("Frida console"));
 }
 
 void MainWindow::openSettings() {
@@ -286,44 +275,72 @@ void MainWindow::rotateDisplay() {
 
 void MainWindow::sendHome() {
     if (display_widget_) {
-        display_widget_->injectKey(3, true);  // AKEYCODE_HOME
-        display_widget_->injectKey(3, false);
+        display_widget_->injectKey(linux_input::KEY_HOME, true);
+        display_widget_->injectKey(linux_input::KEY_HOME, false);
     }
 }
 
 void MainWindow::sendBack() {
     if (display_widget_) {
-        display_widget_->injectKey(4, true);  // AKEYCODE_BACK
-        display_widget_->injectKey(4, false);
+        display_widget_->injectKey(linux_input::KEY_BACK, true);
+        display_widget_->injectKey(linux_input::KEY_BACK, false);
     }
 }
 
 void MainWindow::sendRecent() {
     if (display_widget_) {
-        display_widget_->injectKey(187, true);  // AKEYCODE_APP_SWITCH
-        display_widget_->injectKey(187, false);
+        display_widget_->injectKey(linux_input::KEY_APPSELECT, true);
+        display_widget_->injectKey(linux_input::KEY_APPSELECT, false);
     }
 }
 
 void MainWindow::sendPower() {
     if (display_widget_) {
-        display_widget_->injectKey(26, true);  // AKEYCODE_POWER
-        display_widget_->injectKey(26, false);
+        display_widget_->injectKey(linux_input::KEY_POWER, true);
+        display_widget_->injectKey(linux_input::KEY_POWER, false);
     }
 }
 
 void MainWindow::sendVolumeUp() {
     if (display_widget_) {
-        display_widget_->injectKey(24, true);  // AKEYCODE_VOLUME_UP
-        display_widget_->injectKey(24, false);
+        display_widget_->injectKey(linux_input::KEY_VOLUMEUP, true);
+        display_widget_->injectKey(linux_input::KEY_VOLUMEUP, false);
     }
 }
 
 void MainWindow::sendVolumeDown() {
     if (display_widget_) {
-        display_widget_->injectKey(25, true);  // AKEYCODE_VOLUME_DOWN
-        display_widget_->injectKey(25, false);
+        display_widget_->injectKey(linux_input::KEY_VOLUMEDOWN, true);
+        display_widget_->injectKey(linux_input::KEY_VOLUMEDOWN, false);
     }
+}
+
+void MainWindow::onGuestTouchInput(const TouchContact& /*contact*/) {
+    notifyGuestInputUnavailable();
+}
+
+void MainWindow::onGuestKeyInput(uint16_t /*linux_keycode*/, bool /*pressed*/) {
+    notifyGuestInputUnavailable();
+}
+
+void MainWindow::showUnavailableFeature(const QString& feature) {
+    statusBar()->showMessage(
+        tr("%1 is not available in the current build.").arg(feature),
+        5000);
+}
+
+void MainWindow::notifyGuestInputUnavailable() {
+    if (guest_input_notice_timer_.isValid() && guest_input_notice_timer_.elapsed() < 1500) {
+        return;
+    }
+
+    guest_input_notice_timer_.start();
+    if (!vm_) {
+        statusBar()->showMessage(tr("Input requires a running VM."), 3000);
+        return;
+    }
+
+    showUnavailableFeature(tr("Guest input injection"));
 }
 
 // ============================================================================

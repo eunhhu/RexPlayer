@@ -4,7 +4,7 @@
 //! the host and Android guest via virtio-vsock or 9p filesystem.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

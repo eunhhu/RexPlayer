@@ -2,6 +2,13 @@
 
 This document describes the internal architecture of RexPlayer, a lightweight Android app player that uses native hypervisor APIs instead of QEMU.
 
+## Current Status
+
+- The default native binary is a C++ prototype runtime. It boots x86 kernels directly and uses the software display path.
+- The Rust middleware crates are developed and tested as a separate workspace; they are not linked into the default CMake binary today.
+- Virgl/Venus sources exist, but the shipped runtime still falls back to software rendering.
+- Intel macOS is the only HVF path wired into the shared HAL; Apple Silicon / ARM64 guest support is still incomplete.
+
 ## Design Philosophy
 
 1. **No QEMU** — Use OS-native hypervisor APIs directly (KVM, HVF, WHPX)
@@ -24,8 +31,8 @@ This document describes the internal architecture of RexPlayer, a lightweight An
 │                      InputHandler                            │
 │                      - Qt key → Linux     - Multi-touch      │
 │                        keycode mapping    - WASD gaming       │
-├──────────────── cxx FFI (rex-ffi) ───────────────────────────┤
-│                   Layer 4: Rust Middleware                    │
+├──────────── experimental cxx FFI / workspace crates ─────────┤
+│         Layer 4: Rust Middleware (not linked by default)     │
 │                                                              │
 │  rex-devices (virtio backends)    rex-network                │
 │  ├── virtio-blk                   ├── DHCP server            │
@@ -67,7 +74,7 @@ This document describes the internal architecture of RexPlayer, a lightweight An
 │  IHypervisor interface                                       │
 │  ├── KvmHypervisor      (Linux /dev/kvm ioctl)              │
 │  ├── HvfHypervisor       (macOS Hypervisor.framework x86)    │
-│  ├── HvfArm64Hypervisor  (macOS Hypervisor.framework ARM64)  │
+│  ├── HvfArm64Hypervisor  (planned / incomplete)              │
 │  └── WhpxHypervisor     (Windows WHvCreatePartition)         │
 │                                                              │
 │  IVcpu interface         IMemoryManager interface            │
@@ -81,8 +88,8 @@ This document describes the internal architecture of RexPlayer, a lightweight An
 │                                                              │
 │  IRenderer interface                                         │
 │  ├── SoftwareRenderer   (CPU fallback, 2D resource mgmt)    │
-│  ├── VirglRenderer      (virglrenderer → host OpenGL)        │
-│  └── VenusRenderer      (Mesa Venus → host Vulkan/MoltenVK) │
+│  ├── VirglRenderer      (experimental)                       │
+│  └── VenusRenderer      (experimental)                       │
 │                                                              │
 │  GpuBridge              ShaderCache       Display            │
 │  - Rust GPU → C++       - FNV-1a hash     - Double buffer   │
@@ -101,6 +108,8 @@ This document describes the internal architecture of RexPlayer, a lightweight An
 ## Data Flow
 
 ### vCPU Execution Loop
+
+The default build currently stops at the C++ `DeviceManager`. The MMIO → Rust FFI path shown below is the intended design, not the current default runtime wiring.
 
 ```
 vCPU Thread                    VMM Core                   Device Backend
@@ -243,7 +252,7 @@ GPA               Content
 
 ```
 CMakeLists.txt
-├── Corrosion (FetchContent) ─── middleware/Cargo.toml
+├── Corrosion (optional experimental import) ─ middleware/Cargo.toml
 ├── GoogleTest (FetchContent)
 ├── rex_hal        ← src/hal/ (platform-conditional sources)
 ├── rex_vmm        ← src/vmm/ (VM core + optimizers)
@@ -254,4 +263,4 @@ CMakeLists.txt
 └── tests/         ← GTest executables
 ```
 
-Rust crates are compiled by Corrosion and linked into the C++ binary. The cxx bridge generates both C++ headers and Rust bindings at build time.
+When `REX_ENABLE_EXPERIMENTAL_MIDDLEWARE=ON`, Rust crates are imported by Corrosion and the cxx bridge can be generated. In the default build, the Rust workspace is built and tested separately.

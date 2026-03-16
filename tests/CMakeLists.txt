@@ -3,6 +3,7 @@ add_executable(rex_hal_tests
     hal_tests/test_types.cpp
     hal_tests/test_device_manager.cpp
     hal_tests/test_kvm_integration.cpp
+    hal_tests/test_memory_manager.cpp
 )
 target_link_libraries(rex_hal_tests PRIVATE
     rex_hal

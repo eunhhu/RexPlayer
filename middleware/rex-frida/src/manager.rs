@@ -6,6 +6,7 @@
 use thiserror::Error;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Error, Debug)]
 pub enum FridaError {
@@ -49,7 +50,7 @@ impl FridaArch {
         }
     }
 
-    pub fn from_str(s: &str) -> FridaResult<Self> {
+    fn parse_arch(s: &str) -> FridaResult<Self> {
         match s {
             "x86_64" | "amd64" => Ok(FridaArch::X86_64),
             "arm64" | "aarch64" => Ok(FridaArch::Arm64),
@@ -62,6 +63,14 @@ impl FridaArch {
     /// GitHub release asset name for this architecture
     pub fn asset_name(&self, version: &str) -> String {
         format!("frida-server-{}-android-{}.xz", version, self.as_str())
+    }
+}
+
+impl FromStr for FridaArch {
+    type Err = FridaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_arch(s)
     }
 }
 

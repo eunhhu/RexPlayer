@@ -468,6 +468,11 @@ impl VirtioInput {
         self.kind
     }
 
+    /// Get the touchscreen configuration if this device is a touchscreen.
+    pub fn touchscreen_config(&self) -> Option<&TouchscreenConfig> {
+        self.touch_config.as_ref()
+    }
+
     /// Get the device name
     pub fn name(&self) -> &str {
         &self.name
@@ -617,6 +622,13 @@ impl VirtioInput {
 
             config_select::VIRTIO_INPUT_CFG_EV_BITS => {
                 // subsel = event type; return bitmask of supported codes
+                let event_mask = 1u32
+                    .checked_shl(u32::from(subsel))
+                    .unwrap_or(0);
+                if event_mask == 0 || self.supported_ev_types & event_mask == 0 {
+                    return Vec::new();
+                }
+
                 match subsel {
                     0 => {
                         // EV_SYN: always supported

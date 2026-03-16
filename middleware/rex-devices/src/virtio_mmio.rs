@@ -423,12 +423,13 @@ impl VirtioMmioDevice {
         }
 
         // DRIVER: guest knows how to drive the device
-        if value & STATUS_DRIVER != 0 && prev & STATUS_DRIVER == 0 {
-            if prev & STATUS_ACKNOWLEDGE == 0 {
-                // Must acknowledge first
-                self.status |= STATUS_FAILED;
-                return Err(DeviceError::NotReady);
-            }
+        if value & STATUS_DRIVER != 0
+            && prev & STATUS_DRIVER == 0
+            && prev & STATUS_ACKNOWLEDGE == 0
+        {
+            // Must acknowledge first
+            self.status |= STATUS_FAILED;
+            return Err(DeviceError::NotReady);
         }
 
         // FEATURES_OK: feature negotiation is complete

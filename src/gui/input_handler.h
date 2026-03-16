@@ -94,6 +94,7 @@ namespace linux_input {
     constexpr uint16_t KEY_VOLUMEUP     = 115;
     constexpr uint16_t KEY_VOLUMEDOWN   = 114;
     constexpr uint16_t KEY_SEARCH       = 217;
+    constexpr uint16_t KEY_APPSELECT    = 244;
 
     // D-pad (for WASD gaming mapping)
     constexpr uint16_t KEY_DPAD_UP      = 103; // same as KEY_UP

@@ -7,6 +7,7 @@
 #include "../vmm/include/rex/vmm/snapshot.h"
 
 #include <QLabel>
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QTimer>
 
@@ -65,6 +66,8 @@ public slots:
 private slots:
     void updateStatusBar();
     void onConfigApplied(const RexConfig& config);
+    void onGuestTouchInput(const TouchContact& contact);
+    void onGuestKeyInput(uint16_t linux_keycode, bool pressed);
     void showAbout();
 
 private:
@@ -72,6 +75,8 @@ private:
     void setupToolBar();
     void setupStatusBar();
     void updateVmStateLabel();
+    void showUnavailableFeature(const QString& feature);
+    void notifyGuestInputUnavailable();
 
     // Central widget
     DisplayWidget* display_widget_ = nullptr;
@@ -94,8 +99,8 @@ private:
     // Rotation state (0, 90, 180, 270)
     int rotation_ = 0;
 
-    // Screen recording state
-    bool recording_ = false;
+    // Rate-limit repeated notices from raw input events.
+    QElapsedTimer guest_input_notice_timer_;
 };
 
 } // namespace rex::gui

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! C++ ↔ Rust FFI bridge via cxx
 //!
 //! This crate defines the boundary between the C++ VMM core and the Rust

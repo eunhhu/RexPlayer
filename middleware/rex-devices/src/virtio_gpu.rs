@@ -300,7 +300,7 @@ impl GpuRect {
 ///     le32 flags;
 /// };
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct GpuDisplayOne {
     /// Display rectangle (position and size).
     pub rect: GpuRect,
@@ -320,16 +320,6 @@ impl GpuDisplayOne {
         buf[16..20].copy_from_slice(&self.enabled.to_le_bytes());
         buf[20..24].copy_from_slice(&self.flags.to_le_bytes());
         buf
-    }
-}
-
-impl Default for GpuDisplayOne {
-    fn default() -> Self {
-        Self {
-            rect: GpuRect::default(),
-            enabled: 0,
-            flags: 0,
-        }
     }
 }
 
@@ -392,7 +382,7 @@ impl GpuResource {
 // ============================================================================
 
 /// Scanout configuration — binds a resource to a display output.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Scanout {
     /// Resource ID bound to this scanout (0 = disabled).
     pub resource_id: u32,
@@ -400,16 +390,6 @@ pub struct Scanout {
     pub rect: GpuRect,
     /// Whether this scanout is enabled.
     pub enabled: bool,
-}
-
-impl Default for Scanout {
-    fn default() -> Self {
-        Self {
-            resource_id: 0,
-            rect: GpuRect::default(),
-            enabled: false,
-        }
-    }
 }
 
 // ============================================================================
@@ -1243,7 +1223,7 @@ impl VirtioGpu {
         };
 
         // Delegate to the renderer backend
-        if let Err(_) = self.renderer.create_context(request.ctx_id, &name) {
+        if self.renderer.create_context(request.ctx_id, &name).is_err() {
             return self.make_error_response(GpuCommand::RespErrUnspec, Some(request));
         }
 
@@ -1322,7 +1302,7 @@ impl VirtioGpu {
         let cmd_data_end = (cmd_data_start + cmd_size).min(payload.len());
         let cmd_data = &payload[cmd_data_start..cmd_data_end];
 
-        if let Err(_) = self.renderer.submit_3d(request.ctx_id, cmd_data) {
+        if self.renderer.submit_3d(request.ctx_id, cmd_data).is_err() {
             return self.make_error_response(GpuCommand::RespErrUnspec, Some(request));
         }
 

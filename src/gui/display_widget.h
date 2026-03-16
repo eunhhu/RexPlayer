@@ -48,7 +48,7 @@ public:
     /// Set display rotation (0, 90, 180, 270 degrees)
     void setRotation(int degrees);
 
-    /// Inject a key event into the guest (Android key code)
+    /// Inject a key event into the guest (Linux input key code)
     void injectKey(uint16_t keycode, bool pressed);
 
     /// Get the viewport rectangle (the area where the guest is rendered)
@@ -96,6 +96,8 @@ private:
     QRect viewport_;
     uint32_t guest_width_  = 1080;
     uint32_t guest_height_ = 1920;
+    uint32_t native_guest_width_ = 1080;
+    uint32_t native_guest_height_ = 1920;
 
     // Input handler
     InputHandler input_handler_;

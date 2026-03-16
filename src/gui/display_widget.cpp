@@ -107,6 +107,8 @@ void DisplayWidget::detachDisplay() {
 }
 
 void DisplayWidget::setGuestResolution(uint32_t width, uint32_t height) {
+    native_guest_width_ = width;
+    native_guest_height_ = height;
     guest_width_  = width;
     guest_height_ = height;
     input_handler_.setGuestResolution(width, height);
@@ -302,11 +304,14 @@ void DisplayWidget::setRotation(int degrees) {
 
     if (degrees == 90 || degrees == 270) {
         // Swap guest dimensions for landscape
-        setGuestResolution(guest_height_, guest_width_);
+        guest_width_ = native_guest_height_;
+        guest_height_ = native_guest_width_;
     } else {
-        setGuestResolution(guest_width_, guest_height_);
+        guest_width_ = native_guest_width_;
+        guest_height_ = native_guest_height_;
     }
 
+    input_handler_.setGuestResolution(guest_width_, guest_height_);
     recalcViewport();
     update();
 }

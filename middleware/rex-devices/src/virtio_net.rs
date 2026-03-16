@@ -359,8 +359,12 @@ impl UserNetBackend {
 
     /// Check if an IP belongs to the guest subnet
     pub fn is_in_subnet(&self, ip: &[u8; 4]) -> bool {
-        for i in 0..4 {
-            if (ip[i] & self.netmask[i]) != (self.gateway_ip[i] & self.netmask[i]) {
+        for ((ip_octet, mask_octet), gateway_octet) in ip
+            .iter()
+            .zip(self.netmask.iter())
+            .zip(self.gateway_ip.iter())
+        {
+            if (ip_octet & mask_octet) != (gateway_octet & mask_octet) {
                 return false;
             }
         }
@@ -507,10 +511,7 @@ impl VirtioNet {
         let packet = NetPacket { hdr, data };
 
         let mut backend = self.backend.lock().map_err(|_| {
-            DeviceError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "backend lock poisoned",
-            ))
+            DeviceError::Io(std::io::Error::other("backend lock poisoned"))
         })?;
         backend.send(&packet)?;
         Ok(())
@@ -519,10 +520,7 @@ impl VirtioNet {
     /// Poll for incoming packets from the backend and queue them for RX.
     pub fn poll_rx(&mut self) -> DeviceResult<usize> {
         let mut backend = self.backend.lock().map_err(|_| {
-            DeviceError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "backend lock poisoned",
-            ))
+            DeviceError::Io(std::io::Error::other("backend lock poisoned"))
         })?;
 
         let mut count = 0;
@@ -684,8 +682,8 @@ mod tests {
         let config = VirtioNetConfig::new(mac);
 
         // Read MAC bytes individually
-        for i in 0..6 {
-            assert_eq!(config.read_byte(i), mac[i]);
+        for (i, byte) in mac.iter().enumerate() {
+            assert_eq!(config.read_byte(i), *byte);
         }
 
         // Read status as u32

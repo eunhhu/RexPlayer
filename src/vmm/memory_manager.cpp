@@ -72,29 +72,52 @@ rex::hal::HalResult<void> MemoryManager::add_ram(rex::hal::GPA gpa, rex::hal::Me
     return {};
 }
 
-rex::hal::HalResult<void*> MemoryManager::get_host_ptr(rex::hal::GPA gpa) const {
+const MemoryManager::Allocation* MemoryManager::find_allocation(rex::hal::GPA gpa) const {
     for (const auto& alloc : allocations_) {
         if (gpa >= alloc.gpa && gpa < alloc.gpa + alloc.size) {
-            auto offset = gpa - alloc.gpa;
-            return static_cast<uint8_t*>(alloc.host_ptr) + offset;
+            return &alloc;
         }
+    }
+    return nullptr;
+}
+
+rex::hal::HalResult<void*> MemoryManager::get_host_ptr(rex::hal::GPA gpa) const {
+    if (const auto* alloc = find_allocation(gpa)) {
+        auto offset = gpa - alloc->gpa;
+        return static_cast<uint8_t*>(alloc->host_ptr) + offset;
     }
     return std::unexpected(rex::hal::HalError::InvalidParameter);
 }
 
 rex::hal::HalResult<void> MemoryManager::write(rex::hal::GPA gpa, const void* data, size_t len) {
-    auto ptr_result = get_host_ptr(gpa);
-    if (!ptr_result) return std::unexpected(ptr_result.error());
+    const auto* alloc = find_allocation(gpa);
+    if (!alloc) {
+        return std::unexpected(rex::hal::HalError::InvalidParameter);
+    }
 
-    memcpy(*ptr_result, data, len);
+    auto offset = static_cast<size_t>(gpa - alloc->gpa);
+    if (offset > alloc->size || len > alloc->size - offset) {
+        return std::unexpected(rex::hal::HalError::InvalidParameter);
+    }
+
+    auto* dst = static_cast<uint8_t*>(alloc->host_ptr) + offset;
+    memcpy(dst, data, len);
     return {};
 }
 
 rex::hal::HalResult<void> MemoryManager::read(rex::hal::GPA gpa, void* buf, size_t len) const {
-    auto ptr_result = get_host_ptr(gpa);
-    if (!ptr_result) return std::unexpected(ptr_result.error());
+    const auto* alloc = find_allocation(gpa);
+    if (!alloc) {
+        return std::unexpected(rex::hal::HalError::InvalidParameter);
+    }
 
-    memcpy(buf, *ptr_result, len);
+    auto offset = static_cast<size_t>(gpa - alloc->gpa);
+    if (offset > alloc->size || len > alloc->size - offset) {
+        return std::unexpected(rex::hal::HalError::InvalidParameter);
+    }
+
+    const auto* src = static_cast<const uint8_t*>(alloc->host_ptr) + offset;
+    memcpy(buf, src, len);
     return {};
 }
 

@@ -73,6 +73,20 @@ int main(int argc, char* argv[]) {
 
     parser.process(app);
 
+    if (parser.isSet(config_opt)) {
+        fprintf(stderr,
+                "--config is not supported by the current native runtime; "
+                "use explicit CLI overrides instead.\n");
+        return 2;
+    }
+
+    if (parser.isSet(system_opt)) {
+        fprintf(stderr,
+                "--system-image is not wired into the current native runtime; "
+                "direct kernel boot is the only supported launch path.\n");
+        return 2;
+    }
+
     // --- Build configuration from CLI args ---
     rex::gui::RexConfig config;
 
@@ -87,14 +101,6 @@ int main(int argc, char* argv[]) {
     }
     if (parser.isSet(height_opt)) {
         config.display_height = static_cast<uint32_t>(parser.value(height_opt).toUInt());
-    }
-
-    // TODO(phase3): If --config is provided, parse the TOML file and merge
-    // with CLI overrides. For now, CLI args take precedence.
-    if (parser.isSet(config_opt)) {
-        QString config_path = parser.value(config_opt);
-        fprintf(stderr, "Config file: %s (TOML parsing not yet implemented)\n",
-                config_path.toStdString().c_str());
     }
 
     // --- Create the GPU display backend ---
@@ -114,13 +120,6 @@ int main(int argc, char* argv[]) {
         vm_config.boot.cmdline =
             "console=ttyS0 androidboot.hardware=rex "
             "androidboot.selinux=permissive";
-
-        if (parser.isSet(system_opt)) {
-            // System image path would be used for block device setup
-            // (handled by the device layer in a later phase)
-            fprintf(stderr, "System image: %s\n",
-                    parser.value(system_opt).toStdString().c_str());
-        }
 
         auto result = vm->create(vm_config);
         if (!result) {

@@ -82,7 +82,7 @@ struct InstanceCreateConfig {
 struct CloneOptions {
     /// Name for the cloned instance
     std::string new_name;
-    /// Use copy-on-write (reflink/sparse copy) for disk images
+    /// Prefer copy-on-write cloning and fall back to a full copy when unavailable
     bool copy_on_write = true;
     /// Also clone the data image (if any)
     bool clone_data_image = true;
@@ -95,7 +95,7 @@ static constexpr uint32_t MAX_INSTANCES = 16;
 ///
 /// Tracks creation, startup, shutdown, and destruction of VM instances.
 /// Supports instance persistence (save/load instance list to JSON),
-/// resource isolation, and copy-on-write cloning.
+/// resource isolation, and best-effort copy-on-write cloning.
 class InstanceManager {
 public:
     InstanceManager();

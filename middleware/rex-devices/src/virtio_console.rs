@@ -26,6 +26,12 @@ impl VirtioConsole {
     }
 }
 
+impl Default for VirtioConsole {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VirtioDevice for VirtioConsole {
     fn device_type(&self) -> VirtioDeviceType {
         VirtioDeviceType::Console

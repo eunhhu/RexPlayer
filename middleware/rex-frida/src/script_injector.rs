@@ -130,6 +130,8 @@ impl Default for InjectConfig {
 }
 
 /// Manages Frida script injection into the Android guest
+type MessageCallback = dyn Fn(u64, &str) + Send;
+
 pub struct ScriptInjector {
     /// Active script instances
     scripts: HashMap<u64, ScriptInstance>,
@@ -140,7 +142,7 @@ pub struct ScriptInjector {
     /// Script search paths
     search_paths: Vec<PathBuf>,
     /// Message callback (script_id, message_json)
-    on_message: Option<Box<dyn Fn(u64, &str) + Send>>,
+    on_message: Option<Box<MessageCallback>>,
 }
 
 impl ScriptInjector {

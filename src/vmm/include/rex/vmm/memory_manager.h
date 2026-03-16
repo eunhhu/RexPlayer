@@ -42,6 +42,8 @@ private:
         void* host_ptr;
     };
 
+    const Allocation* find_allocation(rex::hal::GPA gpa) const;
+
     rex::hal::IMemoryManager& hal_mem_;
     std::vector<Allocation> allocations_;
     uint32_t next_slot_ = 0;

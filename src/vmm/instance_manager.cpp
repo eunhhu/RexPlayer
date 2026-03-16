@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -9,6 +10,15 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+
+#if defined(__linux__)
+#include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#elif defined(__APPLE__)
+#include <copyfile.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -95,19 +105,31 @@ bool InstanceManager::copy_file(const std::string& src, const std::string& dst,
     if (cow) {
         // Try copy-on-write first (reflink on supported filesystems)
 #if defined(__linux__)
-        // Use FICLONE ioctl on Linux for btrfs/xfs reflink
-        // Fall back to regular copy if not supported
-        auto opts = fs::copy_options::overwrite_existing;
-        fs::copy_file(src, dst, opts, ec);
-        if (ec) return false;
-        return true;
+        int src_fd = ::open(src.c_str(), O_RDONLY);
+        if (src_fd >= 0) {
+            int dst_fd = ::open(dst.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (dst_fd >= 0) {
+                if (::ioctl(dst_fd, FICLONE, src_fd) == 0) {
+                    ::close(dst_fd);
+                    ::close(src_fd);
+                    return true;
+                }
+
+                ::close(dst_fd);
+                fs::remove(dst, ec);
+                ec.clear();
+            }
+            ::close(src_fd);
+        }
 #elif defined(__APPLE__)
-        // macOS APFS supports clonefile(2)
-        // std::filesystem::copy_file may use it internally on APFS
-        auto opts = fs::copy_options::overwrite_existing;
-        fs::copy_file(src, dst, opts, ec);
-        if (ec) return false;
-        return true;
+        if (::clonefile(src.c_str(), dst.c_str(), 0) == 0) {
+            return true;
+        }
+
+        if (errno != ENOTSUP && errno != EXDEV) {
+            fs::remove(dst, ec);
+            ec.clear();
+        }
 #endif
     }
 

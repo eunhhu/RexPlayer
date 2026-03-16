@@ -17,6 +17,8 @@ option(REX_ENABLE_HVF   "Enable HVF hypervisor backend (macOS)"   OFF)
 option(REX_ENABLE_TESTS "Build tests"                              ON)
 option(REX_ENABLE_GPU   "Enable GPU acceleration"                  OFF)
 option(REX_ENABLE_GUI   "Build Qt GUI"                             ON)
+option(REX_ENABLE_EXPERIMENTAL_MIDDLEWARE
+       "Import experimental Rust middleware targets into the native build" OFF)
 
 # Auto-detect hypervisor based on host OS
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -26,8 +28,15 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(REX_ENABLE_WHPX ON CACHE BOOL "" FORCE)
     set(REX_PLATFORM "windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(REX_ENABLE_HVF ON CACHE BOOL "" FORCE)
     set(REX_PLATFORM "macos")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+        message(WARNING
+            "Apple Silicon host support is not wired into the shared HAL yet; "
+            "the GUI can still build, but VM creation will be unavailable.")
+        set(REX_ENABLE_HVF OFF CACHE BOOL "" FORCE)
+    else()
+        set(REX_ENABLE_HVF ON CACHE BOOL "" FORCE)
+    endif()
 else()
     message(FATAL_ERROR "Unsupported platform: ${CMAKE_SYSTEM_NAME}")
 endif()
@@ -39,17 +48,20 @@ message(STATUS "KVM: ${REX_ENABLE_KVM}, WHPX: ${REX_ENABLE_WHPX}, HVF: ${REX_ENA
 # --- CMake module path ---
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# --- Corrosion (Rust/Cargo integration) ---
+# --- Optional Rust middleware workspace import ---
 include(FetchContent)
-FetchContent_Declare(
-    Corrosion
-    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-    GIT_TAG v0.5
-)
-FetchContent_MakeAvailable(Corrosion)
-
-# --- Rust middleware workspace ---
-corrosion_import_crate(MANIFEST_PATH middleware/Cargo.toml)
+if(REX_ENABLE_EXPERIMENTAL_MIDDLEWARE)
+    FetchContent_Declare(
+        Corrosion
+        GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+        GIT_TAG v0.5
+    )
+    FetchContent_MakeAvailable(Corrosion)
+    corrosion_import_crate(MANIFEST_PATH middleware/Cargo.toml)
+    message(STATUS "Experimental middleware import: enabled")
+else()
+    message(STATUS "Experimental middleware import: disabled")
+endif()
 
 # --- HAL library ---
 add_library(rex_hal STATIC

@@ -1,19 +1,25 @@
 # RexPlayer
 
-**A lightweight, high-performance Android app player built on native hypervisor APIs.**
+**A native-hypervisor Android player prototype built around a C++ VMM core and a separate Rust device workspace.**
 
-RexPlayer runs Android applications on your desktop by leveraging OS-native hypervisors (KVM on Linux, Hypervisor.framework on macOS, WHPX on Windows) instead of QEMU. This eliminates the overhead of legacy device emulation, the Big QEMU Lock, and JIT-based CPU translation — delivering near-native performance with minimal resource usage.
+RexPlayer is currently best understood as a prototype: the C++ runtime can create a VM, boot x86 kernels directly, render through the software display path, and drive a Qt shell. The Rust middleware crates are actively developed and tested, but they are not linked into the default native binary yet.
 
-## Key Features
+## Current Capabilities
 
-- **Native Hypervisor Acceleration** — Direct KVM/HVF/WHPX integration, no QEMU dependency
-- **Minimal VMM** — ~12 purpose-built virtio devices instead of hundreds of legacy devices
-- **GPU Passthrough** — virglrenderer (OpenGL) and Venus (Vulkan) with shader caching
-- **Built-in Frida** — Integrated Frida Server for dynamic instrumentation and security research
-- **Cross-Platform** — Linux, macOS (Intel + Apple Silicon), Windows
-- **Multi-Instance** — Run multiple Android VMs simultaneously with copy-on-write cloning
-- **Fast Boot** — Direct kernel boot (no BIOS/UEFI), snapshot save/restore with RLE compression
-- **Qt GUI** — Touch input emulation, keyboard mapping, screen rotation, APK installation
+- **Native hypervisor backends in tree** — KVM (Linux), WHPX (Windows), HVF x86 (Intel macOS)
+- **Direct x86 kernel boot** — bzImage loading plus snapshot save/restore scaffolding
+- **Qt GUI shell** — framebuffer display, screenshots, settings, and VM lifecycle controls
+- **Software renderer** — a working 2D fallback path with unit coverage
+- **Rust middleware workspace** — virtio, network, Frida, update, config, and filesync crates with standalone tests
+- **Instance management utilities** — cloning, persistence, and metadata tracking
+
+## Not Yet Wired Into The Default Native Runtime
+
+- **System-image boot and virtio device registration**
+- **Rust middleware / cxx FFI integration**
+- **Virgl / Venus passthrough in the shipped binary**
+- **Frida console, APK install, and guest file sync from the GUI**
+- **ARM64 guest boot and Apple Silicon host support**
 
 ## Architecture
 
@@ -37,15 +43,15 @@ RexPlayer runs Android applications on your desktop by leveraging OS-native hype
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document.
 
-## Performance vs QEMU-based Players
+## Design Goals
 
-| Area | Improvement | How |
+| Area | Intended Direction | How |
 |------|-------------|-----|
-| CPU | No TCG fallback | Always hardware virtualization |
-| Memory | 30-50% less RAM | ~12 devices vs hundreds |
-| I/O | 20-40% faster | Lock-free virtqueues, io_uring/IOCP |
-| Boot | 2-4s faster | Direct kernel boot, no firmware |
-| GPU | Near-native | virglrenderer/Venus passthrough |
+| CPU | Avoid TCG fallback | Always hardware virtualization |
+| Memory | Keep the device model small | Purpose-built devices instead of a full QEMU machine |
+| I/O | Prefer host-native async I/O | io_uring / dispatch_io / IOCP abstractions |
+| Boot | Faster startup | Direct kernel boot, no firmware |
+| GPU | Optional acceleration | Experimental virglrenderer / Venus renderers |
 
 ## Building
 
@@ -65,11 +71,11 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document.
 git clone https://github.com/rexplayer/rexplayer.git
 cd rexplayer
 
-# Build C++ (CMake auto-detects platform and hypervisor)
+# Build the native prototype runtime
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Build Rust middleware
+# Build / test the Rust workspace separately
 cd middleware
 cargo build --release
 
@@ -82,34 +88,39 @@ ctest --test-dir ../build       # C++ tests
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `REX_ENABLE_TESTS` | `ON` | Build test suite |
+| `REX_ENABLE_TESTS` | `ON` | Build C++ test suite |
 | `REX_ENABLE_GUI` | `ON` | Build Qt GUI (requires Qt 6) |
-| `REX_ENABLE_GPU` | `OFF` | Link virglrenderer/Venus for GPU acceleration |
+| `REX_ENABLE_GPU` | `OFF` | Build experimental Virgl/Venus sources |
+| `REX_ENABLE_EXPERIMENTAL_MIDDLEWARE` | `OFF` | Import Rust crates into the native CMake build graph |
 
-### GPU Acceleration (Optional)
+### GPU Acceleration (Experimental)
 
 ```bash
 # Install virglrenderer (Linux)
 sudo apt install libvirglrenderer-dev
 
-# Build with GPU support
+# Build with experimental GPU sources enabled
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_GPU=ON
 ```
+
+The default runtime still falls back to the software renderer today.
 
 ## Usage
 
 ```bash
-# Launch with a kernel and system image
-./build/rexplayer --kernel bzImage --system-image system.img
+# Launch with a kernel image
+./build/rexplayer --kernel bzImage
 
-# Custom configuration
-./build/rexplayer --config config.toml --cpus 4 --ram 4096
+# Override CPU / RAM / display from the CLI
+./build/rexplayer --kernel bzImage --cpus 4 --ram 4096 --width 1080 --height 1920
 
 # CLI options
 ./build/rexplayer --help
 ```
 
-### Configuration (TOML)
+`--config` and `--system-image` are rejected by the current native runtime because those code paths are not wired up yet.
+
+### Configuration (Planned TOML shape)
 
 ```toml
 [vm]
@@ -138,10 +149,10 @@ rexplayer/
 │   ├── hal/          # Hypervisor Abstraction Layer (KVM, HVF, WHPX)
 │   ├── vmm/          # VMM Core (VM, memory, boot, snapshot, optimizers)
 │   ├── devices/      # Legacy devices (UART, i8042, RTC, PCI)
-│   ├── gpu/          # GPU renderers (Software, Virgl, Venus) + bridge
+│   ├── gpu/          # Software renderer + experimental Virgl/Venus sources
 │   ├── platform/     # OS abstraction (threading, async I/O)
 │   └── gui/          # Qt 6 GUI (display, input, settings)
-├── middleware/       # Rust workspace
+├── middleware/       # Rust workspace (tested separately; not linked by default)
 │   ├── rex-devices/  # Virtio device backends (blk, net, gpu, input, ...)
 │   ├── rex-ffi/      # C++ ↔ Rust FFI bridge (cxx)
 │   ├── rex-config/   # TOML configuration management
@@ -170,9 +181,9 @@ rexplayer/
 | virtio-console | Serial console I/O | — |
 | virtio-mmio | MMIO transport layer | 10 |
 
-## Frida Integration
+## Frida Workspace Crate
 
-RexPlayer includes built-in Frida Server support for security research:
+The repository includes a Frida manager crate aimed at security-research workflows:
 
 ```bash
 # Frida connects via vsock (no network overhead)
@@ -182,7 +193,7 @@ frida-ps -H localhost:27042
 frida -H localhost:27042 -n com.example.app -l script.js
 ```
 
-The Frida manager handles automatic version detection, download from GitHub releases, and vsock bridge setup.
+That crate is not connected to the default GUI/runtime path yet.
 
 ## Testing
 
@@ -201,10 +212,6 @@ cargo test -p rex-config     # 5 tests
 cargo test -p rex-filesync   # 7 tests
 cargo test -p rex-update     # 8 tests
 ```
-
-## Contributing
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines.
 
 ## License
 

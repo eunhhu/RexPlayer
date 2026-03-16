@@ -1,5 +1,32 @@
 #include "rex/vmm/vm.h"
 #include <cstdio>
+#include <exception>
+#include <fstream>
+
+namespace {
+
+constexpr size_t kArm64MagicOffset = 56;
+constexpr uint32_t kArm64ImageMagic = 0x644D5241; // "ARM\x64"
+
+bool looks_like_arm64_kernel(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    file.seekg(0, std::ios::end);
+    const auto size = file.tellg();
+    if (size < static_cast<std::streamoff>(kArm64MagicOffset + sizeof(uint32_t))) {
+        return false;
+    }
+
+    file.seekg(kArm64MagicOffset, std::ios::beg);
+    uint32_t magic = 0;
+    file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    return file.good() && magic == kArm64ImageMagic;
+}
+
+} // namespace
 
 namespace rex::vmm {
 
@@ -13,7 +40,11 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
     config_ = config;
 
     // Create the hypervisor backend for the current platform
-    hypervisor_ = rex::hal::create_hypervisor();
+    try {
+        hypervisor_ = rex::hal::create_hypervisor();
+    } catch (const std::exception&) {
+        return std::unexpected(rex::hal::HalError::NotSupported);
+    }
 
     auto init_result = hypervisor_->initialize();
     if (!init_result) return init_result;
@@ -43,6 +74,9 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
 
     // Set up direct kernel boot on the BSP (vCPU 0)
     if (!config.boot.kernel_path.empty()) {
+        if (looks_like_arm64_kernel(config.boot.kernel_path)) {
+            return std::unexpected(rex::hal::HalError::NotSupported);
+        }
         auto boot_result = setup_direct_boot_x86(*vcpus_[0], *mem_mgr_, config.boot);
         if (!boot_result) return boot_result;
     }
