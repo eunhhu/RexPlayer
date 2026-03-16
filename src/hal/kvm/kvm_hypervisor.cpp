@@ -208,29 +208,26 @@ HalResult<void> KvmVcpu::inject_interrupt(uint32_t irq) {
 }
 
 HalResult<uint64_t> KvmVcpu::get_msr(uint32_t index) const {
-    struct {
-        struct kvm_msrs header;
-        struct kvm_msr_entry entry;
-    } msrs{};
-    msrs.header.nmsrs = 1;
-    msrs.entry.index = index;
+    // Use a raw buffer to avoid C++23 flexible-array-member-not-at-end error
+    alignas(struct kvm_msrs) uint8_t buf[sizeof(struct kvm_msrs) + sizeof(struct kvm_msr_entry)]{};
+    auto* msrs = reinterpret_cast<struct kvm_msrs*>(buf);
+    msrs->nmsrs = 1;
+    msrs->entries[0].index = index;
 
-    if (ioctl(vcpu_fd_, KVM_GET_MSRS, &msrs) < 0) {
+    if (ioctl(vcpu_fd_, KVM_GET_MSRS, msrs) < 0) {
         return std::unexpected(HalError::InternalError);
     }
-    return msrs.entry.data;
+    return msrs->entries[0].data;
 }
 
 HalResult<void> KvmVcpu::set_msr(uint32_t index, uint64_t value) {
-    struct {
-        struct kvm_msrs header;
-        struct kvm_msr_entry entry;
-    } msrs{};
-    msrs.header.nmsrs = 1;
-    msrs.entry.index = index;
-    msrs.entry.data = value;
+    alignas(struct kvm_msrs) uint8_t buf[sizeof(struct kvm_msrs) + sizeof(struct kvm_msr_entry)]{};
+    auto* msrs = reinterpret_cast<struct kvm_msrs*>(buf);
+    msrs->nmsrs = 1;
+    msrs->entries[0].index = index;
+    msrs->entries[0].data = value;
 
-    if (ioctl(vcpu_fd_, KVM_SET_MSRS, &msrs) < 0) {
+    if (ioctl(vcpu_fd_, KVM_SET_MSRS, msrs) < 0) {
         return std::unexpected(HalError::InternalError);
     }
     return {};

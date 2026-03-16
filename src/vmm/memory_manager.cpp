@@ -42,7 +42,9 @@ rex::hal::HalResult<void> MemoryManager::add_ram(rex::hal::GPA gpa, rex::hal::Me
     }
 
     // Advise the kernel we want huge pages if possible
+#ifdef MADV_HUGEPAGE
     madvise(host_ptr, size, MADV_HUGEPAGE);
+#endif
 #endif
 
     // Zero the memory
