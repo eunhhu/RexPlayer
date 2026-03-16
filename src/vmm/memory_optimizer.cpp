@@ -278,7 +278,7 @@ void MemoryOptimizer::balloon_inflate(uint64_t bytes) {
 
 void MemoryOptimizer::balloon_deflate(uint64_t bytes) {
     uint64_t current = balloon_bytes_.load(std::memory_order_relaxed);
-    uint64_t to_subtract = std::min(current, bytes);
+    uint64_t to_subtract = (std::min)(current, bytes);
     balloon_bytes_.fetch_sub(to_subtract, std::memory_order_relaxed);
 }
 

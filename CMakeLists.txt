@@ -10,6 +10,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Prevent Windows.h from defining min/max macros
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
 # --- Options ---
 option(REX_ENABLE_KVM   "Enable KVM hypervisor backend (Linux)"   OFF)
 option(REX_ENABLE_WHPX  "Enable WHPX hypervisor backend (Windows)" OFF)
