@@ -42,3 +42,4 @@ android/out/
 # Third party build artifacts
 third_party/build/
 .omc/
+.omx/
