@@ -1,4 +1,5 @@
 #include "rex/vmm/vm.h"
+#include <chrono>
 #include <cstdio>
 #include <exception>
 #include <fstream>
@@ -39,6 +40,14 @@ Vm::~Vm() {
 rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
     config_ = config;
 
+#if defined(__aarch64__)
+    if (config_.num_vcpus > 1) {
+        fprintf(stderr,
+                "vm: ARM64 SMP bring-up is not implemented yet; limiting to 1 vCPU\n");
+        config_.num_vcpus = 1;
+    }
+#endif
+
     // Create the hypervisor backend for the current platform
     try {
         hypervisor_ = rex::hal::create_hypervisor();
@@ -52,8 +61,8 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
 
     // Create the VM
     rex::hal::VmConfig vm_config{};
-    vm_config.num_vcpus = config.num_vcpus;
-    vm_config.ram_size = config.ram_size;
+    vm_config.num_vcpus = config_.num_vcpus;
+    vm_config.ram_size = config_.ram_size;
     vm_config.enable_irqchip = true;
 
     auto vm_result = hypervisor_->create_vm(vm_config);
@@ -70,28 +79,28 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
 #else
     constexpr uint64_t RAM_GPA = 0;
 #endif
-    auto ram_result = mem_mgr_->add_ram(RAM_GPA, config.ram_size);
+    auto ram_result = mem_mgr_->add_ram(RAM_GPA, config_.ram_size);
     if (!ram_result) { fprintf(stderr, "vm: add_ram failed: %s\n", rex::hal::hal_error_str(ram_result.error())); return ram_result; }
-    fprintf(stderr, "vm: %llu MB RAM mapped at GPA 0x%llx\n", config.ram_size / (1024*1024), RAM_GPA);
+    fprintf(stderr, "vm: %llu MB RAM mapped at GPA 0x%llx\n", config_.ram_size / (1024*1024), RAM_GPA);
 
     // Create vCPUs
-    for (uint32_t i = 0; i < config.num_vcpus; ++i) {
+    for (uint32_t i = 0; i < config_.num_vcpus; ++i) {
         auto vcpu_result = hypervisor_->create_vcpu(i);
         if (!vcpu_result) { fprintf(stderr, "vm: create_vcpu %u failed: %s\n", i, rex::hal::hal_error_str(vcpu_result.error())); return std::unexpected(vcpu_result.error()); }
         vcpus_.push_back(std::move(*vcpu_result));
     }
-    fprintf(stderr, "vm: %u vCPUs created\n", config.num_vcpus);
+    fprintf(stderr, "vm: %u vCPUs created\n", config_.num_vcpus);
 
     // Set up direct kernel boot on the BSP (vCPU 0)
-    if (!config.boot.kernel_path.empty()) {
+    if (!config_.boot.kernel_path.empty()) {
 #if defined(__aarch64__)
-        auto boot_result = setup_direct_boot_arm64(*vcpus_[0], *mem_mgr_, config.boot);
+        auto boot_result = setup_direct_boot_arm64(*vcpus_[0], *mem_mgr_, config_.boot);
         if (!boot_result) { fprintf(stderr, "vm: arm64 boot setup failed: %s\n", rex::hal::hal_error_str(boot_result.error())); }
 #else
-        if (looks_like_arm64_kernel(config.boot.kernel_path)) {
+        if (looks_like_arm64_kernel(config_.boot.kernel_path)) {
             return std::unexpected(rex::hal::HalError::NotSupported);
         }
-        auto boot_result = setup_direct_boot_x86(*vcpus_[0], *mem_mgr_, config.boot);
+        auto boot_result = setup_direct_boot_x86(*vcpus_[0], *mem_mgr_, config_.boot);
 #endif
         if (!boot_result) return boot_result;
     }
@@ -163,8 +172,9 @@ void Vm::vcpu_loop(rex::hal::IVcpu* vcpu) {
                 break;
             }
             case rex::hal::VcpuExit::Reason::MmioAccess: {
-                static uint64_t mmio_count = 0;
-                if (++mmio_count <= 20) {
+                static std::atomic<uint64_t> mmio_count{0};
+                const auto mmio_index = mmio_count.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (mmio_index <= 20) {
                     fprintf(stderr, "MMIO %s addr=0x%llx size=%u data=0x%llx\n",
                             exit.mmio.is_write ? "W" : "R",
                             exit.mmio.address, exit.mmio.size,
@@ -208,8 +218,9 @@ void Vm::vcpu_loop(rex::hal::IVcpu* vcpu) {
                 break;
             }
             case rex::hal::VcpuExit::Reason::Hlt:
-                // Guest executed WFI/HLT — wait for interrupt
-                std::this_thread::yield();
+                // Guest executed WFI/HLT. Sleep briefly so trapped idle loops
+                // don't spin the host CPU while we wait for an interrupt path.
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 break;
             case rex::hal::VcpuExit::Reason::Shutdown:
                 fprintf(stderr, "vCPU %u: guest shutdown\n", vcpu->id());

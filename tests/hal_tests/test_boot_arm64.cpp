@@ -19,8 +19,10 @@ using namespace rex::vmm;
 
 namespace {
 
-constexpr GPA kKernelLoadAddr = 0x80000;
-constexpr GPA kDtbLoadAddr = 0x4000000;
+constexpr GPA kRamBase = 0x40000000;
+constexpr GPA kKernelLoadAddr = kRamBase + 0x80000;
+constexpr GPA kDtbLoadAddr = kRamBase + 0x04000000;
+constexpr size_t kRamSize = 128 * 1024 * 1024;
 constexpr size_t kArm64MagicOffset = 56;
 constexpr uint32_t kArm64Magic = 0x644D5241;
 
@@ -117,8 +119,7 @@ TEST(Arm64Boot, GeneratesValidDtbAndBootRegisters) {
     MemoryManager mem(hal_mem);
     MockVcpu vcpu;
 
-    ASSERT_TRUE(mem.add_ram(kKernelLoadAddr, 2 * 1024 * 1024).has_value());
-    ASSERT_TRUE(mem.add_ram(kDtbLoadAddr, 64 * 1024).has_value());
+    ASSERT_TRUE(mem.add_ram(kRamBase, kRamSize).has_value());
 
     const auto kernel_path =
         std::filesystem::temp_directory_path() / "rexplayer-arm64-kernel-test.bin";

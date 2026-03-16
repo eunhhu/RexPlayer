@@ -21,7 +21,11 @@ enum class VmState {
 
 /// Configuration for creating a VM
 struct VmCreateConfig {
+#if defined(__aarch64__)
+    uint32_t num_vcpus = 1;
+#else
     uint32_t num_vcpus = 2;
+#endif
     rex::hal::MemSize ram_size = 2ULL * 1024 * 1024 * 1024; // 2 GB
     BootParams boot;
 };

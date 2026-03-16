@@ -17,7 +17,11 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 BUILD_DIR="${BUILD_DIR:-${PROJECT_ROOT}/build}"
 OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/dist}"
-VERSION="${VERSION:-$(grep 'VERSION [0-9]' "${PROJECT_ROOT}/CMakeLists.txt" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')}"
+DEFAULT_VERSION="$(
+    sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' \
+        "${PROJECT_ROOT}/CMakeLists.txt" | head -n 1
+)"
+VERSION="${VERSION:-${DEFAULT_VERSION:-0.1.0}}"
 APP_NAME="RexPlayer"
 
 # ── Argument parsing ─────────────────────────────────────────────────
@@ -129,53 +133,30 @@ APPRUN
 package_macos() {
     echo "[macOS] Creating DMG..."
 
-    local APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
+    local SOURCE_APP_BUNDLE="${BUILD_DIR}/rexplayer.app"
+    local APP_BUNDLE="${BUILD_DIR}/packaging-${APP_NAME}.app"
+    local ENTITLEMENTS_PLIST="${PROJECT_ROOT}/packaging/macos/entitlements.plist"
+
     rm -rf "${APP_BUNDLE}"
 
-    # Create the .app bundle structure
-    mkdir -p "${APP_BUNDLE}/Contents/MacOS"
-    mkdir -p "${APP_BUNDLE}/Contents/Resources"
-    mkdir -p "${APP_BUNDLE}/Contents/Frameworks"
-
-    # Copy the main binary
-    if [[ ! -f "${BUILD_DIR}/rexplayer" ]]; then
-        echo "Error: binary not found at ${BUILD_DIR}/rexplayer" >&2
+    if [[ -d "${SOURCE_APP_BUNDLE}" ]]; then
+        cp -R "${SOURCE_APP_BUNDLE}" "${APP_BUNDLE}"
+    elif [[ -f "${BUILD_DIR}/rexplayer" ]]; then
+        mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+        mkdir -p "${APP_BUNDLE}/Contents/Resources"
+        mkdir -p "${APP_BUNDLE}/Contents/Frameworks"
+        cp "${BUILD_DIR}/rexplayer" "${APP_BUNDLE}/Contents/MacOS/rexplayer"
+        cp "${PROJECT_ROOT}/packaging/macos/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
+        find "${BUILD_DIR}" -name "*.dylib" -exec cp {} "${APP_BUNDLE}/Contents/Frameworks/" \; 2>/dev/null || true
+    else
+        echo "Error: neither ${SOURCE_APP_BUNDLE} nor ${BUILD_DIR}/rexplayer exists." >&2
         echo "  Build the project first: cmake --build build" >&2
         exit 1
     fi
-    cp "${BUILD_DIR}/rexplayer" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
-    # Copy any dylibs we built
-    find "${BUILD_DIR}" -name "*.dylib" -exec cp {} "${APP_BUNDLE}/Contents/Frameworks/" \; 2>/dev/null || true
-
-    # Info.plist
-    cat > "${APP_BUNDLE}/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundleDisplayName</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.rex.player</string>
-    <key>CFBundleVersion</key>
-    <string>${VERSION}</string>
-    <key>CFBundleShortVersionString</key>
-    <string>${VERSION}</string>
-    <key>CFBundleExecutable</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-</dict>
-</plist>
-PLIST
+    if [[ -f "${ENTITLEMENTS_PLIST}" ]] && command -v codesign &>/dev/null; then
+        codesign --force --deep --sign - --entitlements "${ENTITLEMENTS_PLIST}" "${APP_BUNDLE}"
+    fi
 
     # Create DMG staging directory
     local DMG_STAGING="${BUILD_DIR}/dmg-staging"

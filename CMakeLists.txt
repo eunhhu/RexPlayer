@@ -184,11 +184,28 @@ if(REX_ENABLE_GUI)
 
         # macOS: create app bundle
         if(APPLE)
+            set(REX_MACOS_INFO_PLIST "${CMAKE_SOURCE_DIR}/packaging/macos/Info.plist")
+            set(REX_MACOS_ENTITLEMENTS "${CMAKE_SOURCE_DIR}/packaging/macos/entitlements.plist")
             set_target_properties(rexplayer PROPERTIES
                 MACOSX_BUNDLE TRUE
                 MACOSX_BUNDLE_BUNDLE_NAME "RexPlayer"
                 MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+                MACOSX_BUNDLE_INFO_PLIST "${REX_MACOS_INFO_PLIST}"
             )
+
+            find_program(REX_CODESIGN_EXECUTABLE codesign)
+            if(REX_CODESIGN_EXECUTABLE AND EXISTS "${REX_MACOS_ENTITLEMENTS}")
+                add_custom_command(TARGET rexplayer POST_BUILD
+                    COMMAND "${REX_CODESIGN_EXECUTABLE}"
+                        --force
+                        --deep
+                        --sign -
+                        --entitlements "${REX_MACOS_ENTITLEMENTS}"
+                        "$<TARGET_BUNDLE_DIR:rexplayer>"
+                    COMMENT "Ad-hoc signing rexplayer.app with Hypervisor entitlement"
+                    VERBATIM
+                )
+            endif()
         endif()
 
         message(STATUS "Qt GUI: enabled (Qt ${Qt6_VERSION})")
