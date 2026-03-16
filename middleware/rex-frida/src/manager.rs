@@ -5,7 +5,7 @@
 
 use thiserror::Error;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Error, Debug)]
 pub enum FridaError {
