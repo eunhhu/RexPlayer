@@ -185,6 +185,15 @@ void Vm::vcpu_loop(rex::hal::IVcpu* vcpu) {
                                 break;
                         }
                     }
+                }
+                // GIC distributor at 0x08000000 and redistributor at 0x080A0000
+                else if (exit.mmio.address >= 0x08000000 && exit.mmio.address < 0x081A0000) {
+                    if (!exit.mmio.is_write) {
+                        uint32_t offset = static_cast<uint32_t>(exit.mmio.address - 0x08000000);
+                        if (offset == 0x0004) exit.mmio.data = 0x04; // GICD_TYPER: 4 IRQ lines
+                        else if (offset == 0x0000) exit.mmio.data = 0x03; // GICD_CTLR: enabled
+                        else exit.mmio.data = 0;
+                    }
                 } else if (!device_mgr_.dispatch_mmio(exit.mmio)) {
                     if (!exit.mmio.is_write) {
                         exit.mmio.data = 0;

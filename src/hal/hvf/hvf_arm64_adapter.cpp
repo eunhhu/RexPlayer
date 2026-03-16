@@ -47,16 +47,29 @@ struct HvfArm64VcpuImpl {
         }
         created = true;
 
-        // Configure HCR_EL2 for proper guest trapping
-        uint64_t hcr = 0;
-        hv_vcpu_get_sys_reg(handle, HV_SYS_REG_HCR_EL2, &hcr);
-        hcr |= (1ULL << 0);   // VM  — enable stage-2 translation (MMIO traps)
-        hcr |= (1ULL << 1);   // SWIO — set/way invalidation override
-        hcr |= (1ULL << 3);   // FMO — route FIQ to EL2
-        hcr |= (1ULL << 4);   // IMO — route IRQ to EL2
-        hcr |= (1ULL << 31);  // RW  — EL1 is AArch64
-        hcr |= (1ULL << 27);  // TWI — trap WFI to EL2
+        // Set HCR_EL2 for proper EL1 guest trapping:
+        //   VM(0)  — stage-2 translation (HVF manages this, but MMIO needs it)
+        //   SWIO(1) — set/way invalidation override
+        //   FMO(3) — FIQ to EL2
+        //   IMO(4) — IRQ to EL2
+        //   AMO(5) — SError to EL2
+        //   TWI(27) — trap WFI
+        //   TWE(28) — trap WFE
+        //   RW(31) — EL1 is AArch64
+        //   TSC(19) — trap SMC
+        uint64_t hcr = (1ULL << 0)   // VM
+                     | (1ULL << 1)   // SWIO
+                     | (1ULL << 3)   // FMO
+                     | (1ULL << 4)   // IMO
+                     | (1ULL << 5)   // AMO
+                     | (1ULL << 19)  // TSC (trap SMC)
+                     | (1ULL << 27)  // TWI
+                     | (1ULL << 28)  // TWE
+                     | (1ULL << 31); // RW
         hv_vcpu_set_sys_reg(handle, HV_SYS_REG_HCR_EL2, hcr);
+
+        // Enable vtimer delivery (unmask)
+        hv_vcpu_set_vtimer_mask(handle, false);
 
         fprintf(stderr, "vcpu %u: created on thread, HCR_EL2=0x%llx\n", id, hcr);
 
@@ -103,17 +116,75 @@ struct HvfArm64VcpuImpl {
 
 namespace {
 
-constexpr uint64_t kSmcccRetNotSupported = ~0ULL;
+// PSCI function IDs (SMCCC convention)
+constexpr uint32_t PSCI_VERSION       = 0x84000000;
+constexpr uint32_t PSCI_CPU_SUSPEND   = 0xC4000001;
+constexpr uint32_t PSCI_CPU_OFF       = 0x84000002;
+constexpr uint32_t PSCI_CPU_ON        = 0xC4000003;
+constexpr uint32_t PSCI_SYSTEM_OFF    = 0x84000008;
+constexpr uint32_t PSCI_SYSTEM_RESET  = 0x84000009;
+constexpr uint32_t PSCI_FEATURES      = 0x8400000A;
+constexpr uint32_t SMCCC_VERSION      = 0x80000000;
+constexpr uint32_t SMCCC_ARCH_FEATURES = 0x80000001;
 
-bool complete_trapped_firmware_call(HvfArm64VcpuImpl& impl) {
-    uint64_t pc = 0;
-    if (hv_vcpu_get_reg(impl.handle, HV_REG_PC, &pc) != HV_SUCCESS) {
-        return false;
+constexpr int32_t PSCI_SUCCESS        = 0;
+constexpr int32_t PSCI_NOT_SUPPORTED  = -1;
+constexpr int32_t PSCI_ALREADY_ON     = -6;
+
+bool handle_psci_hvc(HvfArm64VcpuImpl& impl) {
+    uint64_t pc = 0, x0 = 0;
+    hv_vcpu_get_reg(impl.handle, HV_REG_PC, &pc);
+    hv_vcpu_get_reg(impl.handle, HV_REG_X0, &x0);
+
+    uint32_t func_id = static_cast<uint32_t>(x0);
+    int64_t ret_val = PSCI_NOT_SUPPORTED;
+
+    switch (func_id) {
+        case PSCI_VERSION:
+            // PSCI 1.0
+            ret_val = (1 << 16) | 0; // major=1, minor=0
+            break;
+        case PSCI_FEATURES:
+            // Report supported: CPU_ON, CPU_OFF, SYSTEM_OFF, SYSTEM_RESET
+            ret_val = PSCI_SUCCESS;
+            break;
+        case PSCI_CPU_ON:
+            // Single vCPU — report already on
+            ret_val = PSCI_ALREADY_ON;
+            break;
+        case PSCI_CPU_OFF:
+            ret_val = PSCI_SUCCESS;
+            break;
+        case PSCI_SYSTEM_OFF:
+        case PSCI_SYSTEM_RESET:
+            ret_val = PSCI_SUCCESS;
+            break;
+        case PSCI_CPU_SUSPEND:
+            ret_val = PSCI_SUCCESS;
+            break;
+        case SMCCC_VERSION:
+            // SMCCC 1.1
+            ret_val = (1 << 16) | 1;
+            break;
+        case SMCCC_ARCH_FEATURES:
+            ret_val = PSCI_NOT_SUPPORTED;
+            break;
+        default:
+            ret_val = PSCI_NOT_SUPPORTED;
+            break;
     }
-    if (hv_vcpu_set_reg(impl.handle, HV_REG_X0, kSmcccRetNotSupported) != HV_SUCCESS) {
-        return false;
+
+    static int hvc_log_count = 0;
+    if (++hvc_log_count <= 20) {
+        uint64_t cur_hcr = 0;
+        hv_vcpu_get_sys_reg(impl.handle, HV_SYS_REG_HCR_EL2, &cur_hcr);
+        fprintf(stderr, "HVC: func=0x%08x → ret=0x%llx pc=0x%llx HCR=0x%llx\n",
+                func_id, static_cast<uint64_t>(ret_val), pc, cur_hcr);
     }
-    return hv_vcpu_set_reg(impl.handle, HV_REG_PC, pc + 4) == HV_SUCCESS;
+
+    hv_vcpu_set_reg(impl.handle, HV_REG_X0, static_cast<uint64_t>(ret_val));
+    hv_vcpu_set_reg(impl.handle, HV_REG_PC, pc + 4);
+    return true;
 }
 
 } // namespace
@@ -154,7 +225,7 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
         auto* ei = impl_->exit_info;
 
         static uint64_t exit_count = 0;
-        if (++exit_count <= 30) {
+        if (++exit_count <= 100 || exit_count % 10000 == 0) {
             uint64_t pc = 0;
             hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
             fprintf(stderr, "vcpu exit #%llu: reason=%d pc=0x%llx", exit_count, ei->reason, pc);
@@ -196,7 +267,7 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                     // Treat trapped firmware calls as "not supported" and
                     // advance past the instruction so guests are not killed
                     // before the VMM grows real PSCI/SMCCC handling.
-                    if (!complete_trapped_firmware_call(*impl_)) {
+                    if (!handle_psci_hvc(*impl_)) {
                         return std::unexpected(HalError::InternalError);
                     }
                     continue;

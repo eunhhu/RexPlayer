@@ -200,6 +200,7 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_u32("#size-cells", 2);
 
     builder.begin_node("chosen");
+    builder.property_string("stdout-path", "/pl011@9000000");
     if (!cmdline.empty()) {
         builder.property_string("bootargs", cmdline);
     }
@@ -217,6 +218,18 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_cells("reg", reg_cells);
     builder.end_node();
 
+    // --- PSCI (Power State Coordination Interface) ---
+    builder.begin_node("psci");
+    builder.property_string("compatible", "arm,psci-1.0");
+    builder.property_string("method", "hvc");
+    builder.end_node();
+
+    // --- interrupt-parent phandle ---
+    // Use phandle 1 for GIC
+    constexpr uint32_t GIC_PHANDLE = 1;
+    builder.property_u32("interrupt-parent", GIC_PHANDLE);
+
+    // --- CPUs ---
     builder.begin_node("cpus");
     builder.property_u32("#address-cells", 1);
     builder.property_u32("#size-cells", 0);
@@ -224,22 +237,57 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_string("device_type", "cpu");
     builder.property_string("compatible", "arm,armv8");
     builder.property_u32("reg", 0);
+    builder.property_string("enable-method", "psci");
     builder.end_node();
     builder.end_node();
 
-    // PL011 UART at 0x09000000 — console output
+    // --- GIC v3 interrupt controller at 0x08000000 ---
+    builder.begin_node("intc@8000000");
+    builder.property_string("compatible", "arm,gic-v3");
+    builder.property_u32("#interrupt-cells", 3);
+    builder.property_u32("#address-cells", 2);
+    builder.property_u32("#size-cells", 2);
+    // empty value = interrupt-controller flag
+    builder.property_cells("interrupt-controller", {});
+    builder.property_u32("phandle", GIC_PHANDLE);
+    // GIC distributor at 0x08000000 (64KB), redistributor at 0x080A0000 (1MB)
+    auto gic_reg = cells_for_u64(0x08000000);
+    auto gic_dsz = cells_for_u64(0x10000);
+    auto gic_rbase = cells_for_u64(0x080A0000);
+    auto gic_rsz = cells_for_u64(0x100000);
+    gic_reg.insert(gic_reg.end(), gic_dsz.begin(), gic_dsz.end());
+    gic_reg.insert(gic_reg.end(), gic_rbase.begin(), gic_rbase.end());
+    gic_reg.insert(gic_reg.end(), gic_rsz.begin(), gic_rsz.end());
+    builder.property_cells("reg", gic_reg);
+    builder.end_node();
+
+    // --- ARM generic timer ---
+    builder.begin_node("timer");
+    builder.property_string("compatible", "arm,armv8-timer");
+    // interrupts: PPI 13 (secure phys), PPI 14 (non-secure phys),
+    //             PPI 11 (virtual), PPI 10 (hypervisor)
+    // Format: GIC_PPI(1) irq_num flags(edge-rising=4)
+    builder.property_cells("interrupts", {
+        1, 13, 4,  // secure physical timer
+        1, 14, 4,  // non-secure physical timer
+        1, 11, 4,  // virtual timer
+        1, 10, 4,  // hypervisor timer
+    });
+    builder.property_cells("always-on", {});
+    builder.end_node();
+
+    // --- PL011 UART at 0x09000000 ---
     builder.begin_node("pl011@9000000");
     builder.property_string("compatible", "arm,pl011\0arm,primecell");
     auto uart_reg = cells_for_u64(0x09000000);
     auto uart_size = cells_for_u64(0x1000);
     uart_reg.insert(uart_reg.end(), uart_size.begin(), uart_size.end());
     builder.property_cells("reg", uart_reg);
+    // UART interrupt: SPI 1, level-high
+    builder.property_cells("interrupts", {0, 1, 4});
     builder.end_node();
 
-    // stdout-path for kernel console
-    // (reopen chosen to add stdout-path — or we set it in cmdline)
-
-    builder.end_node();
+    builder.end_node(); // root
     return builder.build();
 }
 
