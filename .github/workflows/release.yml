@@ -16,19 +16,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
-      - name: Build
+      - name: Build C++
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
-      - name: Test
+      - name: Test C++
         run: ctest --test-dir build --output-on-failure
-      - name: Cargo build + test
+      - name: Build + test Rust
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
       - name: Package
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          cp build/rexplayer dist/rexplayer-linux-x86_64 || true
-          cp -r build/librex_*.a dist/ || true
-          tar czf dist/rexplayer-v${{ github.ref_name }}-linux-x86_64.tar.gz -C dist . || true
+          cp build/rexplayer dist/ || true
+          cp build/librex_*.a dist/ || true
+          tar czf "dist/rexplayer-${TAG}-linux-x86_64.tar.gz" -C dist .
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
@@ -42,17 +44,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Qt
         run: brew install qt@6
-      - name: Build
+      - name: Build C++
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6) && cmake --build build
-      - name: Cargo build + test
+      - name: Build + test Rust
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
       - name: Package
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          cp build/rexplayer dist/rexplayer-macos || true
-          cp -r build/librex_*.a dist/ || true
-          tar czf dist/rexplayer-v${{ github.ref_name }}-macos.tar.gz -C dist . || true
+          cp build/rexplayer dist/ || true
+          cp build/librex_*.a dist/ || true
+          tar czf "dist/rexplayer-${TAG}-macos.tar.gz" -C dist .
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -68,17 +72,27 @@ jobs:
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.7.0'
-      - name: Build
+      - name: Build C++
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
           cmake --build build --config Release
-      - name: Cargo build + test
+      - name: Build + test Rust
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
+      - name: Package
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/Release/rexplayer.exe dist/ || true
+          cp build/Release/*.dll dist/ || true
+          cp build/Release/librex_*.lib dist/ || true
+          cd dist && 7z a "rexplayer-${TAG}-windows-x86_64.zip" . || tar czf "rexplayer-${TAG}-windows-x86_64.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
-          path: build/Release/*.exe
+          path: dist/rexplayer-*
           if-no-files-found: warn
 
   release:
@@ -91,6 +105,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: List artifacts
+        run: find artifacts -type f
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
