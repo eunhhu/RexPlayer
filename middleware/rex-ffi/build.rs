@@ -7,7 +7,7 @@ fn main() {
         .unwrap();
 
     cxx_build::bridge("src/lib.rs")
-        .std("c++20")
+        .std("c++23")
         .include(project_root.join("src/vmm/include")) // For rex/ffi/callbacks.h
         .compile("rex_ffi");
 

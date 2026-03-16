@@ -5,55 +5,7 @@
 #include <string>
 #include <variant>
 
-// std::expected is C++23; provide a minimal polyfill for C++20 compilers
-#if __has_include(<expected>) && __cplusplus > 202002L
 #include <expected>
-#else
-#include <stdexcept>
-namespace std {
-template <typename E>
-class unexpected {
-public:
-    explicit unexpected(E e) : error_(static_cast<E&&>(e)) {}
-    const E& error() const& { return error_; }
-    E& error() & { return error_; }
-private:
-    E error_;
-};
-
-template <typename T, typename E>
-class expected {
-public:
-    expected() : has_value_(true), value_{} {}
-    expected(T v) : has_value_(true), value_(static_cast<T&&>(v)) {} // NOLINT
-    expected(unexpected<E> u) : has_value_(false), error_(u.error()) {} // NOLINT
-    bool has_value() const { return has_value_; }
-    explicit operator bool() const { return has_value_; }
-    T& operator*() { return value_; }
-    const T& operator*() const { return value_; }
-    T* operator->() { return &value_; }
-    const T* operator->() const { return &value_; }
-    const E& error() const { return error_; }
-private:
-    bool has_value_;
-    T value_{};
-    E error_{};
-};
-
-template <typename E>
-class expected<void, E> {
-public:
-    expected() : has_value_(true) {}
-    expected(unexpected<E> u) : has_value_(false), error_(u.error()) {} // NOLINT
-    bool has_value() const { return has_value_; }
-    explicit operator bool() const { return has_value_; }
-    const E& error() const { return error_; }
-private:
-    bool has_value_;
-    E error_{};
-};
-} // namespace std
-#endif
 
 namespace rex::hal {
 

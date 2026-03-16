@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include "rex/hal/types.h" // for std::expected polyfill
+#include <expected>
 
 namespace rex::gpu {
 
