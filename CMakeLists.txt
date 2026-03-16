@@ -98,6 +98,8 @@ target_link_libraries(rex_devices_legacy PUBLIC rex_vmm)
 # --- GPU library ---
 add_library(rex_gpu STATIC
     src/gpu/display.cpp
+    src/gpu/software_renderer.cpp
+    src/gpu/gpu_bridge.cpp
 )
 target_include_directories(rex_gpu PUBLIC src/gpu)
 

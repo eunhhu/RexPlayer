@@ -16,3 +16,13 @@ target_include_directories(rex_hal_tests PRIVATE
 
 include(GoogleTest)
 gtest_discover_tests(rex_hal_tests)
+
+# GPU tests
+add_executable(rex_gpu_tests
+    gpu_tests/test_software_renderer.cpp
+)
+target_link_libraries(rex_gpu_tests PRIVATE
+    rex_gpu
+    GTest::gtest_main
+)
+gtest_discover_tests(rex_gpu_tests)
