@@ -1,5 +1,10 @@
 #include "venus_renderer.h"
 #include <cstdio>
+#include <cstring>
+
+// When Venus/Vulkan is linked:
+// #include <vulkan/vulkan.h>
+// #define HAS_VENUS 1
 
 namespace rex::gpu {
 
@@ -9,49 +14,93 @@ VenusRenderer::~VenusRenderer() {
     if (initialized_) destroy();
 }
 
-RendererResult<void> VenusRenderer::initialize(uint32_t width, uint32_t height) {
-    width_ = width;
-    height_ = height;
+RendererResult<void> VenusRenderer::initialize() {
+    std::lock_guard lock(mutex_);
 
-    // TODO: Initialize Venus render server
-    // Requires:
-    // - Host Vulkan instance creation
-    // - Venus protocol setup
-    // - Ring buffer for command submission
-    fprintf(stderr, "VenusRenderer: Venus render server not linked yet\n");
-    return std::unexpected(RendererError::NotSupported);
-}
+#ifdef HAS_VENUS
+    VkApplicationInfo app_info = {};
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pApplicationName = "RexPlayer";
+    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
+    app_info.apiVersion = VK_API_VERSION_1_3;
 
-RendererResult<ContextHandle> VenusRenderer::create_context(uint32_t ctx_id) {
-    if (!initialized_) return std::unexpected(RendererError::NotInitialized);
-    return static_cast<ContextHandle>(ctx_id);
-}
+    VkInstanceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pApplicationInfo = &app_info;
 
-void VenusRenderer::destroy_context(ContextHandle /*handle*/) {}
+    #ifdef __APPLE__
+    create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    #endif
 
-RendererResult<void> VenusRenderer::submit_commands(
-    ContextHandle /*ctx*/, const CommandBuffer& /*cmds*/)
-{
-    if (!initialized_) return std::unexpected(RendererError::NotInitialized);
+    VkInstance instance;
+    if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS) {
+        return std::unexpected(RendererError::InitFailed);
+    }
+    vulkan_version_ = VK_API_VERSION_1_3;
+    initialized_ = true;
+#else
+    fprintf(stderr, "VenusRenderer: Vulkan not linked, stub mode\n");
+    vulkan_version_ = 0;
+    initialized_ = true;
+#endif
+
     return {};
 }
 
-RendererResult<FrameBuffer> VenusRenderer::get_framebuffer() {
-    if (!initialized_) return std::unexpected(RendererError::NotInitialized);
+RendererResult<ContextHandle> VenusRenderer::create_context() {
+    std::lock_guard lock(mutex_);
+    if (!initialized_) return std::unexpected(RendererError::InitFailed);
 
-    FrameBuffer fb{};
-    fb.width = width_;
-    fb.height = height_;
-    fb.format = PixelFormat::BGRA8888;
-    fb.stride = width_ * 4;
-    fb.data = nullptr;
-    return fb;
+    ContextHandle handle = next_ctx_++;
+    contexts_.insert(handle);
+    return handle;
+}
+
+RendererResult<void> VenusRenderer::destroy_context(ContextHandle ctx) {
+    std::lock_guard lock(mutex_);
+    contexts_.erase(ctx);
+    return {};
+}
+
+RendererResult<void> VenusRenderer::submit_commands(const CommandBuffer& cmds) {
+    std::lock_guard lock(mutex_);
+    if (!initialized_) return std::unexpected(RendererError::InitFailed);
+    if (!cmds.data || cmds.size == 0) return {};
+
+#ifdef HAS_VENUS
+    // Decode Venus protocol and replay on host Vulkan
+#else
+    (void)cmds;
+#endif
+
+    return {};
+}
+
+RendererResult<const FrameBuffer*> VenusRenderer::get_framebuffer(ContextHandle ctx) {
+    std::lock_guard lock(mutex_);
+    if (!initialized_) return std::unexpected(RendererError::InitFailed);
+    if (!contexts_.count(ctx)) {
+        return std::unexpected(RendererError::ContextCreationFailed);
+    }
+
+    // Stub: no framebuffer until Vulkan readback is implemented
+    (void)ctx;
+    return std::unexpected(RendererError::InvalidFramebuffer);
 }
 
 void VenusRenderer::destroy() {
-    if (initialized_) {
-        initialized_ = false;
+    std::lock_guard lock(mutex_);
+    contexts_.clear();
+    scanout_data_.clear();
+    scanout_fb_ = {};
+    initialized_ = false;
+}
+
+bool VenusRenderer::has_extension(const char* ext_name) const {
+    for (const auto& ext : extensions_) {
+        if (ext == ext_name) return true;
     }
+    return false;
 }
 
 } // namespace rex::gpu

@@ -3,11 +3,20 @@
 #include "rex/hal/hypervisor.h"
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <WinHvPlatform.h>
+#endif
+
 namespace rex::hal {
 
 class WhpxVcpu : public IVcpu {
 public:
-    WhpxVcpu(VcpuId id);
+#ifdef _WIN32
+    WhpxVcpu(WHV_PARTITION_HANDLE partition, VcpuId id);
+#else
+    WhpxVcpu(void* partition, VcpuId id);
+#endif
     ~WhpxVcpu() override;
 
     HalResult<VcpuExit> run() override;
@@ -22,12 +31,20 @@ public:
 
 private:
     VcpuId id_;
+#ifdef _WIN32
+    WHV_PARTITION_HANDLE partition_ = nullptr;
+#else
     void* partition_ = nullptr;
+#endif
 };
 
 class WhpxMemoryManager : public IMemoryManager {
 public:
+#ifdef _WIN32
+    explicit WhpxMemoryManager(WHV_PARTITION_HANDLE partition);
+#else
     explicit WhpxMemoryManager(void* partition);
+#endif
 
     HalResult<void> map_region(const MemoryRegion& region) override;
     HalResult<void> unmap_region(uint32_t slot) override;
@@ -35,7 +52,11 @@ public:
     std::vector<MemoryRegion> get_regions() const override;
 
 private:
+#ifdef _WIN32
+    WHV_PARTITION_HANDLE partition_;
+#else
     void* partition_;
+#endif
     std::vector<MemoryRegion> regions_;
 };
 
@@ -55,7 +76,11 @@ public:
     int api_version() const override;
 
 private:
+#ifdef _WIN32
+    WHV_PARTITION_HANDLE partition_ = nullptr;
+#else
     void* partition_ = nullptr;
+#endif
     std::unique_ptr<WhpxMemoryManager> mem_mgr_;
     VmConfig config_;
 };

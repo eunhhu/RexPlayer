@@ -100,8 +100,26 @@ add_library(rex_gpu STATIC
     src/gpu/display.cpp
     src/gpu/software_renderer.cpp
     src/gpu/gpu_bridge.cpp
+    src/gpu/virgl_renderer.cpp
+    src/gpu/venus_renderer.cpp
+    src/gpu/shader_cache.cpp
 )
 target_include_directories(rex_gpu PUBLIC src/gpu)
+
+# Optional GPU acceleration libraries
+if(REX_ENABLE_GPU)
+    find_package(Virgl QUIET)
+    if(VIRGL_FOUND)
+        target_link_libraries(rex_gpu PRIVATE Virgl::Virgl)
+        target_compile_definitions(rex_gpu PRIVATE HAS_VIRGL=1)
+    endif()
+
+    find_package(Venus QUIET)
+    if(VENUS_FOUND)
+        target_link_libraries(rex_gpu PRIVATE Venus::Venus)
+        target_compile_definitions(rex_gpu PRIVATE HAS_VENUS=1)
+    endif()
+endif()
 
 # --- Platform abstraction ---
 add_library(rex_platform STATIC
