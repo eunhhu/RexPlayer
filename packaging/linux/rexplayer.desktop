@@ -3,11 +3,16 @@ Type=Application
 Name=RexPlayer
 GenericName=Android App Player
 Comment=Lightweight high-performance Android app player
-Exec=rexplayer %F
+Exec=rexplayer %f
 Icon=rexplayer
 Terminal=false
 Categories=Development;Emulator;System;
-MimeType=application/vnd.android.package-archive;
-Keywords=android;emulator;player;frida;
+Keywords=Android;Emulator;Virtual Machine;Player;
+MimeType=application/x-rexplayer-instance;
 StartupNotify=true
 StartupWMClass=RexPlayer
+Actions=new-instance;
+
+[Desktop Action new-instance]
+Name=New Instance
+Exec=rexplayer --new-instance

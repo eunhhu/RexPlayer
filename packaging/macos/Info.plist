@@ -2,44 +2,97 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>RexPlayer</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+
     <key>CFBundleDisplayName</key>
     <string>RexPlayer</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.rexplayer.RexPlayer</string>
-    <key>CFBundleVersion</key>
-    <string>0.1.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+
     <key>CFBundleExecutable</key>
     <string>rexplayer</string>
+
     <key>CFBundleIconFile</key>
     <string>rexplayer.icns</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.rexplayer.RexPlayer</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleName</key>
+    <string>RexPlayer</string>
+
     <key>CFBundlePackageType</key>
     <string>APPL</string>
-    <key>CFBundleSignature</key>
-    <string>REXP</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>13.0</string>
+
     <key>NSHighResolutionCapable</key>
     <true/>
+
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright 2026 RexPlayer Team</string>
+    <string>Copyright 2026 RexPlayer contributors. All rights reserved.</string>
+
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <key>NSMainNibFile</key>
+    <string></string>
+
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
+            <key>CFBundleTypeName</key>
+            <string>RexPlayer Instance</string>
             <key>CFBundleTypeExtensions</key>
             <array>
-                <string>apk</string>
+                <string>rexinstance</string>
             </array>
-            <key>CFBundleTypeName</key>
-            <string>Android Package</string>
             <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>rexplayer-doc.icns</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>RexPlayer Configuration</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>toml</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
         </dict>
     </array>
+
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+
     <key>com.apple.security.hypervisor</key>
+    <true/>
+
+    <key>com.apple.security.virtualization</key>
     <true/>
 </dict>
 </plist>

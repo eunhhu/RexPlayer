@@ -1,36 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.rexplayer.RexPlayer</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>RexPlayer</name>
   <summary>Lightweight high-performance Android app player</summary>
-  <metadata_license>MIT</metadata_license>
-  <project_license>MIT</project_license>
+
   <description>
     <p>
-      RexPlayer is a next-generation Android app player that uses native
-      hypervisor APIs (KVM, WHPX, HVF) for maximum performance. Unlike
-      traditional emulators based on QEMU, RexPlayer implements a minimal
-      VMM with purpose-built virtio devices for low overhead.
+      RexPlayer is a lightweight, high-performance Android app player built on
+      native hypervisor APIs (KVM on Linux, Hypervisor.framework on macOS,
+      WHPX on Windows). It provides near-native execution speed with minimal
+      resource overhead.
     </p>
-    <p>Features:</p>
+    <p>Features include:</p>
     <ul>
-      <li>Native hypervisor acceleration (KVM/WHPX/HVF)</li>
-      <li>GPU passthrough via virglrenderer and Venus</li>
-      <li>Built-in Frida for security research</li>
-      <li>Multi-instance support</li>
-      <li>ARM app compatibility via libhoudini</li>
+      <li>Hardware-accelerated virtualization via native hypervisor APIs</li>
+      <li>GPU passthrough with Virgl and Venus renderer support</li>
+      <li>Multi-instance management with copy-on-write cloning</li>
+      <li>Virtio device stack (block, net, input, GPU, vsock)</li>
+      <li>CPU optimization with vCPU pinning and topology-aware scheduling</li>
+      <li>Snapshot save and restore</li>
+      <li>Frida integration for dynamic instrumentation</li>
+      <li>Qt-based GUI with touch input emulation</li>
     </ul>
   </description>
+
+  <launchable type="desktop-id">rexplayer.desktop</launchable>
+
   <url type="homepage">https://github.com/rexplayer/rexplayer</url>
   <url type="bugtracker">https://github.com/rexplayer/rexplayer/issues</url>
-  <launchable type="desktop-id">rexplayer.desktop</launchable>
+
   <provides>
     <binary>rexplayer</binary>
   </provides>
-  <content_rating type="oars-1.1" />
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>RexPlayer main window running an Android application</caption>
+      <image>https://raw.githubusercontent.com/rexplayer/rexplayer/main/docs/screenshots/main-window.png</image>
+    </screenshot>
+  </screenshots>
+
   <releases>
     <release version="0.1.0" date="2026-03-16">
-      <description><p>Initial release</p></description>
+      <description>
+        <p>Initial release with core virtualization features:</p>
+        <ul>
+          <li>KVM/HVF/WHPX hypervisor backends</li>
+          <li>Virtio device stack</li>
+          <li>Qt GUI with display and input handling</li>
+          <li>Multi-instance management</li>
+          <li>CPU optimization module</li>
+        </ul>
+      </description>
     </release>
   </releases>
+
+  <content_rating type="oars-1.1" />
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
 </component>
