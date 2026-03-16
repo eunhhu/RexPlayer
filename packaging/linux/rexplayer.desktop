@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=RexPlayer
+GenericName=Android App Player
+Comment=Lightweight high-performance Android app player
+Exec=rexplayer %F
+Icon=rexplayer
+Terminal=false
+Categories=Development;Emulator;System;
+MimeType=application/vnd.android.package-archive;
+Keywords=android;emulator;player;frida;
+StartupNotify=true
+StartupWMClass=RexPlayer

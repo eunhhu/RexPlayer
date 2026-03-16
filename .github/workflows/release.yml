@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+      - name: Build
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Cargo build + test
+        run: cargo build --release --workspace && cargo test --workspace --release
+        working-directory: middleware
+      - name: Package
+        run: bash scripts/package.sh linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: dist/*
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Qt
+        run: brew install qt@6
+      - name: Build
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6) && cmake --build build
+      - name: Cargo build + test
+        run: cargo build --release --workspace && cargo test --workspace --release
+        working-directory: middleware
+      - name: Package
+        run: bash scripts/package.sh macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.0'
+      - name: Build
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release
+      - name: Cargo build + test
+        run: cargo build --release --workspace && cargo test --workspace --release
+        working-directory: middleware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: build/Release/rexplayer.exe
+
+  release:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
