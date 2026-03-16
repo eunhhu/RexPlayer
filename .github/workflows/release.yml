@@ -27,14 +27,14 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p dist
-          cp build/rexplayer dist/ || true
-          cp build/librex_*.a dist/ || true
-          tar czf "dist/rexplayer-${TAG}-linux-x86_64.tar.gz" -C dist .
+          mkdir -p staging
+          cp build/rexplayer staging/ 2>/dev/null || true
+          cp build/librex_*.a staging/ 2>/dev/null || true
+          tar czf "rexplayer-${TAG}-linux-x86_64.tar.gz" -C staging .
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
-          path: dist/*.tar.gz
+          path: "*.tar.gz"
           if-no-files-found: warn
 
   build-macos:
@@ -53,14 +53,14 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p dist
-          cp build/rexplayer dist/ || true
-          cp build/librex_*.a dist/ || true
-          tar czf "dist/rexplayer-${TAG}-macos.tar.gz" -C dist .
+          mkdir -p staging
+          cp build/rexplayer staging/ 2>/dev/null || true
+          cp build/librex_*.a staging/ 2>/dev/null || true
+          tar czf "rexplayer-${TAG}-macos.tar.gz" -C staging .
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/*.tar.gz
+          path: "*.tar.gz"
           if-no-files-found: warn
 
   build-windows:
@@ -84,15 +84,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         shell: bash
         run: |
-          mkdir -p dist
-          cp build/Release/rexplayer.exe dist/ || true
-          cp build/Release/*.dll dist/ || true
-          cp build/Release/librex_*.lib dist/ || true
-          cd dist && 7z a "rexplayer-${TAG}-windows-x86_64.zip" . || tar czf "rexplayer-${TAG}-windows-x86_64.tar.gz" .
+          mkdir -p staging
+          cp build/Release/rexplayer.exe staging/ 2>/dev/null || true
+          cp build/Release/*.dll staging/ 2>/dev/null || true
+          cp build/Release/librex_*.lib staging/ 2>/dev/null || true
+          cd staging && 7z a "../rexplayer-${TAG}-windows-x86_64.zip" . || true
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
-          path: dist/rexplayer-*
+          path: "*.zip"
           if-no-files-found: warn
 
   release:
