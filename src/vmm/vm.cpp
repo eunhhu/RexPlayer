@@ -63,10 +63,16 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
     // Set up memory
     mem_mgr_ = std::make_unique<MemoryManager>(hypervisor_->memory_manager());
 
-    // Map guest RAM at GPA 0
-    auto ram_result = mem_mgr_->add_ram(0, config.ram_size);
+    // Map guest RAM
+#if defined(__aarch64__)
+    // ARM64: RAM at 1GB so GIC(0x08000000) and UART(0x09000000) are unmapped → MMIO traps
+    constexpr uint64_t RAM_GPA = 0x40000000ULL;
+#else
+    constexpr uint64_t RAM_GPA = 0;
+#endif
+    auto ram_result = mem_mgr_->add_ram(RAM_GPA, config.ram_size);
     if (!ram_result) { fprintf(stderr, "vm: add_ram failed: %s\n", rex::hal::hal_error_str(ram_result.error())); return ram_result; }
-    fprintf(stderr, "vm: %llu MB RAM mapped at GPA 0\n", config.ram_size / (1024*1024));
+    fprintf(stderr, "vm: %llu MB RAM mapped at GPA 0x%llx\n", config.ram_size / (1024*1024), RAM_GPA);
 
     // Create vCPUs
     for (uint32_t i = 0; i < config.num_vcpus; ++i) {

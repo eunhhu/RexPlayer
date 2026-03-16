@@ -243,24 +243,74 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                 uint8_t ec = (syndrome >> 26) & 0x3F;
 
                 if (ec == 0x24 || ec == 0x25) { // Data abort → MMIO
-                    exit.reason = VcpuExit::Reason::MmioAccess;
-                    exit.mmio.address = ei->exception.physical_address;
+                    uint64_t pa = ei->exception.physical_address;
                     bool isv = (syndrome >> 24) & 1;
                     bool wnr = (syndrome >> 6) & 1;
                     uint8_t sas = (syndrome >> 22) & 3;
-                    exit.mmio.size = isv ? static_cast<uint8_t>(1 << sas) : 4;
+                    uint32_t srt = isv ? ((syndrome >> 16) & 0x1F) : 0;
+                    uint8_t access_size = isv ? static_cast<uint8_t>(1 << sas) : 4;
+
+                    // Handle MMIO internally for known devices
+                    bool handled = false;
+
+                    // --- PL011 UART (0x09000000) ---
+                    if ((pa & ~0xFFFULL) == 0x09000000) {
+                        uint32_t off = static_cast<uint32_t>(pa & 0xFFF);
+                        if (wnr) {
+                            if (off == 0x00) { // UARTDR — write char
+                                uint64_t val = 0;
+                                if (isv) hv_vcpu_get_reg(impl_->handle,
+                                    static_cast<hv_reg_t>(HV_REG_X0 + srt), &val);
+                                fputc(static_cast<char>(val & 0xFF), stderr);
+                            }
+                        } else {
+                            uint64_t resp = 0;
+                            switch (off) {
+                                case 0x18: resp = 0x10; break; // UARTFR: TXFE (bit4)
+                                case 0x00: resp = 0; break;    // UARTDR: no data
+                                default:   resp = 0; break;
+                            }
+                            if (isv) hv_vcpu_set_reg(impl_->handle,
+                                static_cast<hv_reg_t>(HV_REG_X0 + srt), resp);
+                        }
+                        handled = true;
+                    }
+                    // --- GIC distributor (0x08000000) + redistributor (0x080A0000) ---
+                    else if (pa >= 0x08000000 && pa < 0x081A0000) {
+                        if (!wnr && isv) {
+                            uint64_t resp = 0;
+                            uint32_t off = static_cast<uint32_t>(pa - 0x08000000);
+                            if (off == 0x0000) resp = 0x03;     // GICD_CTLR: enabled
+                            else if (off == 0x0004) resp = (3 << 19) | 4; // GICD_TYPER: GICv3, ITLines=4
+                            else if (off == 0x0008) resp = 0x30; // GICD_IIDR
+                            else if (off >= 0xA0000 && ((off - 0xA0000) & 0xFFF) == 0x14)
+                                resp = (1 << 24); // GICR_WAKER: ChildrenAsleep=0, ProcessorSleep=0
+                            hv_vcpu_set_reg(impl_->handle,
+                                static_cast<hv_reg_t>(HV_REG_X0 + srt), resp);
+                        }
+                        handled = true;
+                    }
+
+                    // Advance PC
+                    uint64_t pc = 0;
+                    hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
+                    hv_vcpu_set_reg(impl_->handle, HV_REG_PC, pc + 4);
+
+                    if (handled) {
+                        continue; // Don't return to VMM, keep running
+                    }
+
+                    // Unknown MMIO — return to VMM
+                    exit.reason = VcpuExit::Reason::MmioAccess;
+                    exit.mmio.address = pa;
+                    exit.mmio.size = access_size;
                     exit.mmio.is_write = wnr;
                     if (wnr && isv) {
-                        uint32_t srt = (syndrome >> 16) & 0x1F;
                         uint64_t val = 0;
                         hv_vcpu_get_reg(impl_->handle,
                             static_cast<hv_reg_t>(HV_REG_X0 + srt), &val);
                         exit.mmio.data = val;
                     }
-                    // Advance PC past the faulting instruction (4 bytes for ARM64)
-                    uint64_t pc = 0;
-                    hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
-                    hv_vcpu_set_reg(impl_->handle, HV_REG_PC, pc + 4);
                 } else if (ec == 0x01) { // WFI/WFE → Hlt
                     exit.reason = VcpuExit::Reason::Hlt;
                 } else if (ec == 0x16 || ec == 0x17) { // HVC/SMC

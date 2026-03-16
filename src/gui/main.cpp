@@ -137,9 +137,17 @@ int main(int argc, char* argv[]) {
             vm_config.num_vcpus = config.cpu_cores;
             vm_config.ram_size = static_cast<uint64_t>(config.ram_mb) * 1024 * 1024;
             vm_config.boot.kernel_path = kernel_path;
+
+#if defined(__aarch64__)
+            vm_config.boot.cmdline =
+                "console=ttyAMA0 earlycon=pl011,0x09000000 "
+                "nosmp nokaslr androidboot.hardware=rex "
+                "androidboot.selinux=permissive";
+#else
             vm_config.boot.cmdline =
                 "console=ttyS0 androidboot.hardware=rex "
                 "androidboot.selinux=permissive";
+#endif
 
             auto result = vm->create(vm_config);
             if (!result) {

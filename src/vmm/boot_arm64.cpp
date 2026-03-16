@@ -18,10 +18,10 @@ namespace {
 // - Device tree blob (DTB) at a 64-byte aligned address
 // - x0 = DTB physical address, x1-x3 = 0
 
-static constexpr rex::hal::GPA RAM_BASE          = 0x0;       // GPA 0
-static constexpr rex::hal::GPA KERNEL_LOAD_ADDR  = 0x80000;   // RAM + 512KB
-static constexpr rex::hal::GPA DTB_LOAD_ADDR     = 0x4000000; // RAM + 64MB
-static constexpr rex::hal::GPA INITRD_LOAD_ADDR  = 0x8000000; // RAM + 128MB
+static constexpr rex::hal::GPA RAM_BASE          = 0x40000000; // 1 GB
+static constexpr rex::hal::GPA KERNEL_LOAD_ADDR  = 0x40080000; // RAM + 512KB
+static constexpr rex::hal::GPA DTB_LOAD_ADDR     = 0x44000000; // RAM + 64MB
+static constexpr rex::hal::GPA INITRD_LOAD_ADDR  = 0x48000000; // RAM + 128MB
 
 // ARM64 Image header magic
 static constexpr uint32_t ARM64_MAGIC = 0x644D5241; // "ARM\x64"
