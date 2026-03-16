@@ -160,6 +160,14 @@ int main(int argc, char* argv[]) {
 
     if (vm) {
         window.setVm(vm.get());
+        // Auto-start the VM
+        auto start_result = vm->start();
+        if (start_result) {
+            fprintf(stderr, "VM started — vCPU running\n");
+        } else {
+            fprintf(stderr, "VM start failed: %s\n",
+                    rex::hal::hal_error_str(start_result.error()));
+        }
     }
 
     window.show();

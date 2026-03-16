@@ -21,17 +21,66 @@ struct HvfArm64VcpuImpl {
     hv_vcpu_t handle = 0;
     hv_vcpu_exit_t* exit_info = nullptr;
     bool valid = false;
+    bool created = false;
     VcpuId id;
 
+    // Pending register state (set before run, applied on lazy create)
+    X86Regs pending_regs{};
+    X86Sregs pending_sregs{};
+    bool has_pending_regs = false;
+    bool has_pending_sregs = false;
+
     explicit HvfArm64VcpuImpl(VcpuId vid) : id(vid) {
+        // Defer creation — HVF requires vCPU to be created on the thread that runs it
+        valid = true; // Mark as "ready to create"
+    }
+
+    /// Actually create the vCPU (must be called from the run thread)
+    bool ensure_created() {
+        if (created) return true;
         hv_vcpu_config_t config = hv_vcpu_config_create();
         hv_return_t ret = hv_vcpu_create(&handle, &exit_info, config);
         if (config) os_release(config);
-        valid = (ret == HV_SUCCESS);
+        if (ret != HV_SUCCESS) {
+            valid = false;
+            return false;
+        }
+        created = true;
+
+        // Apply any pending register state
+        if (has_pending_regs) {
+            apply_regs(pending_regs);
+            has_pending_regs = false;
+        }
+        if (has_pending_sregs) {
+            apply_sregs(pending_sregs);
+            has_pending_sregs = false;
+        }
+        return true;
+    }
+
+    void apply_regs(const X86Regs& regs) {
+        const uint64_t* gp[] = {
+            &regs.rax, &regs.rbx, &regs.rcx, &regs.rdx,
+            &regs.rsi, &regs.rdi, &regs.rbp, &regs.rsp,
+            &regs.r8,  &regs.r9,  &regs.r10, &regs.r11,
+            &regs.r12, &regs.r13, &regs.r14, &regs.r15,
+        };
+        for (int i = 0; i < 16; ++i)
+            hv_vcpu_set_reg(handle, static_cast<hv_reg_t>(HV_REG_X0 + i), *gp[i]);
+        hv_vcpu_set_reg(handle, HV_REG_PC, regs.rip);
+        hv_vcpu_set_reg(handle, HV_REG_CPSR, regs.rflags);
+    }
+
+    void apply_sregs(const X86Sregs& sregs) {
+        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_SCTLR_EL1, sregs.cr0);
+        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_TTBR0_EL1, sregs.cr3);
+        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_TCR_EL1, sregs.cr4);
+        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_MAIR_EL1, sregs.efer);
     }
 
     ~HvfArm64VcpuImpl() {
-        if (valid) hv_vcpu_destroy(handle);
+        if (created) hv_vcpu_destroy(handle);
     }
 };
 
@@ -72,6 +121,10 @@ bool HvfArm64VcpuAdapter::is_valid() const {
 HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
     if (!impl_ || !impl_->valid)
         return std::unexpected(HalError::NotInitialized);
+
+    // Lazy create vCPU on the calling thread (HVF requirement)
+    if (!impl_->ensure_created())
+        return std::unexpected(HalError::InternalError);
 
     for (;;) {
         hv_return_t ret = hv_vcpu_run(impl_->handle);
@@ -163,18 +216,14 @@ HalResult<X86Regs> HvfArm64VcpuAdapter::get_regs() const {
 HalResult<void> HvfArm64VcpuAdapter::set_regs(const X86Regs& regs) {
     if (!impl_ || !impl_->valid) return std::unexpected(HalError::NotInitialized);
 
-    const uint64_t* gp[] = {
-        &regs.rax, &regs.rbx, &regs.rcx, &regs.rdx,
-        &regs.rsi, &regs.rdi, &regs.rbp, &regs.rsp,
-        &regs.r8,  &regs.r9,  &regs.r10, &regs.r11,
-        &regs.r12, &regs.r13, &regs.r14, &regs.r15,
-    };
-    for (int i = 0; i < 16; ++i) {
-        hv_vcpu_set_reg(impl_->handle,
-            static_cast<hv_reg_t>(HV_REG_X0 + i), *gp[i]);
+    if (!impl_->created) {
+        // Defer — will be applied when vCPU is created on the run thread
+        impl_->pending_regs = regs;
+        impl_->has_pending_regs = true;
+        return {};
     }
-    hv_vcpu_set_reg(impl_->handle, HV_REG_PC, regs.rip);
-    hv_vcpu_set_reg(impl_->handle, HV_REG_CPSR, regs.rflags);
+
+    impl_->apply_regs(regs);
     return {};
 }
 
@@ -191,10 +240,14 @@ HalResult<X86Sregs> HvfArm64VcpuAdapter::get_sregs() const {
 
 HalResult<void> HvfArm64VcpuAdapter::set_sregs(const X86Sregs& sregs) {
     if (!impl_ || !impl_->valid) return std::unexpected(HalError::NotInitialized);
-    hv_vcpu_set_sys_reg(impl_->handle, HV_SYS_REG_SCTLR_EL1, sregs.cr0);
-    hv_vcpu_set_sys_reg(impl_->handle, HV_SYS_REG_TTBR0_EL1, sregs.cr3);
-    hv_vcpu_set_sys_reg(impl_->handle, HV_SYS_REG_TCR_EL1, sregs.cr4);
-    hv_vcpu_set_sys_reg(impl_->handle, HV_SYS_REG_MAIR_EL1, sregs.efer);
+
+    if (!impl_->created) {
+        impl_->pending_sregs = sregs;
+        impl_->has_pending_sregs = true;
+        return {};
+    }
+
+    impl_->apply_sregs(sregs);
     return {};
 }
 
