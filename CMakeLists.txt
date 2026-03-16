@@ -82,9 +82,11 @@ add_library(rex_vmm STATIC
     src/vmm/boot_x86.cpp
     src/vmm/boot_arm64.cpp
     src/vmm/snapshot.cpp
+    src/vmm/cpu_optimizer.cpp
+    src/vmm/instance_manager.cpp
 )
-target_include_directories(rex_vmm PUBLIC src/vmm/include)
-target_link_libraries(rex_vmm PUBLIC rex_hal)
+target_include_directories(rex_vmm PUBLIC src/vmm/include src/vmm)
+target_link_libraries(rex_vmm PUBLIC rex_hal rex_platform)
 
 # --- Legacy devices library ---
 add_library(rex_devices_legacy STATIC
