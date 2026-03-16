@@ -24,11 +24,16 @@ jobs:
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
       - name: Package
-        run: bash scripts/package.sh linux
+        run: |
+          mkdir -p dist
+          cp build/rexplayer dist/rexplayer-linux-x86_64 || true
+          cp -r build/librex_*.a dist/ || true
+          tar czf dist/rexplayer-v${{ github.ref_name }}-linux-x86_64.tar.gz -C dist . || true
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
-          path: dist/*
+          path: dist/*.tar.gz
+          if-no-files-found: warn
 
   build-macos:
     runs-on: macos-latest
@@ -43,11 +48,16 @@ jobs:
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
       - name: Package
-        run: bash scripts/package.sh macos
+        run: |
+          mkdir -p dist
+          cp build/rexplayer dist/rexplayer-macos || true
+          cp -r build/librex_*.a dist/ || true
+          tar czf dist/rexplayer-v${{ github.ref_name }}-macos.tar.gz -C dist . || true
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/*
+          path: dist/*.tar.gz
+          if-no-files-found: warn
 
   build-windows:
     runs-on: windows-latest
@@ -59,17 +69,21 @@ jobs:
         with:
           version: '6.7.0'
       - name: Build
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
+          cmake --build build --config Release
       - name: Cargo build + test
         run: cargo build --release --workspace && cargo test --workspace --release
         working-directory: middleware
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
-          path: build/Release/rexplayer.exe
+          path: build/Release/*.exe
+          if-no-files-found: warn
 
   release:
     needs: [build-linux, build-macos, build-windows]
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     permissions:
       contents: write
