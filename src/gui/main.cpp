@@ -2,6 +2,7 @@
 #include "settings_dialog.h"
 #include "../gpu/display.h"
 #include "../vmm/include/rex/vmm/vm.h"
+#include "../vmm/embedded_kernel.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -107,26 +108,48 @@ int main(int argc, char* argv[]) {
     auto gpu_display = std::make_unique<rex::gpu::Display>();
     gpu_display->resize(config.display_width, config.display_height);
 
-    // --- Create the VM (if kernel path provided) ---
+    // --- Create the VM ---
+    // If no kernel is specified, generate a built-in test kernel automatically.
     std::unique_ptr<rex::vmm::Vm> vm;
 
-    if (parser.isSet(kernel_opt)) {
-        vm = std::make_unique<rex::vmm::Vm>();
+    {
+        std::string kernel_path;
 
-        rex::vmm::VmCreateConfig vm_config;
-        vm_config.num_vcpus = config.cpu_cores;
-        vm_config.ram_size = static_cast<uint64_t>(config.ram_mb) * 1024 * 1024;
-        vm_config.boot.kernel_path = parser.value(kernel_opt).toStdString();
-        vm_config.boot.cmdline =
-            "console=ttyS0 androidboot.hardware=rex "
-            "androidboot.selinux=permissive";
+        if (parser.isSet(kernel_opt)) {
+            kernel_path = parser.value(kernel_opt).toStdString();
+        } else {
+            // Generate embedded test kernel for the current architecture
+#if defined(__aarch64__)
+            auto kernel = rex::vmm::generate_test_kernel_arm64();
+            kernel_path = rex::vmm::save_temp_kernel(kernel, "rex_test_arm64.bin");
+            fprintf(stderr, "No kernel specified — using built-in ARM64 test kernel\n");
+#elif defined(__x86_64__)
+            auto kernel = rex::vmm::generate_test_kernel_x86();
+            kernel_path = rex::vmm::save_temp_kernel(kernel, "rex_test_x86.bin");
+            fprintf(stderr, "No kernel specified — using built-in x86 test kernel\n");
+#endif
+        }
 
-        auto result = vm->create(vm_config);
-        if (!result) {
-            fprintf(stderr, "Failed to create VM: %s\n",
-                    rex::hal::hal_error_str(result.error()));
-            // Continue anyway — the GUI can still be used for configuration
-            vm.reset();
+        if (!kernel_path.empty()) {
+            vm = std::make_unique<rex::vmm::Vm>();
+
+            rex::vmm::VmCreateConfig vm_config;
+            vm_config.num_vcpus = config.cpu_cores;
+            vm_config.ram_size = static_cast<uint64_t>(config.ram_mb) * 1024 * 1024;
+            vm_config.boot.kernel_path = kernel_path;
+            vm_config.boot.cmdline =
+                "console=ttyS0 androidboot.hardware=rex "
+                "androidboot.selinux=permissive";
+
+            auto result = vm->create(vm_config);
+            if (!result) {
+                fprintf(stderr, "Failed to create VM: %s\n",
+                        rex::hal::hal_error_str(result.error()));
+                vm.reset();
+            } else {
+                fprintf(stderr, "VM created: %u vCPUs, %u MB RAM\n",
+                        config.cpu_cores, config.ram_mb);
+            }
         }
     }
 

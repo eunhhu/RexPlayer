@@ -109,6 +109,7 @@ add_library(rex_vmm STATIC
     src/vmm/snapshot.cpp
     src/vmm/cpu_optimizer.cpp
     src/vmm/instance_manager.cpp
+    src/vmm/embedded_kernel.cpp
 )
 target_include_directories(rex_vmm PUBLIC src/vmm/include src/vmm)
 target_link_libraries(rex_vmm PUBLIC rex_hal rex_platform)

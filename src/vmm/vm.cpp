@@ -47,7 +47,8 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
     }
 
     auto init_result = hypervisor_->initialize();
-    if (!init_result) return init_result;
+    if (!init_result) { fprintf(stderr, "vm: init failed: %s\n", rex::hal::hal_error_str(init_result.error())); return init_result; }
+    fprintf(stderr, "vm: hypervisor %s initialized\n", hypervisor_->name().c_str());
 
     // Create the VM
     rex::hal::VmConfig vm_config{};
@@ -56,26 +57,30 @@ rex::hal::HalResult<void> Vm::create(const VmCreateConfig& config) {
     vm_config.enable_irqchip = true;
 
     auto vm_result = hypervisor_->create_vm(vm_config);
-    if (!vm_result) return vm_result;
+    if (!vm_result) { fprintf(stderr, "vm: create_vm failed: %s\n", rex::hal::hal_error_str(vm_result.error())); return vm_result; }
+    fprintf(stderr, "vm: VM created\n");
 
     // Set up memory
     mem_mgr_ = std::make_unique<MemoryManager>(hypervisor_->memory_manager());
 
     // Map guest RAM at GPA 0
     auto ram_result = mem_mgr_->add_ram(0, config.ram_size);
-    if (!ram_result) return ram_result;
+    if (!ram_result) { fprintf(stderr, "vm: add_ram failed: %s\n", rex::hal::hal_error_str(ram_result.error())); return ram_result; }
+    fprintf(stderr, "vm: %llu MB RAM mapped at GPA 0\n", config.ram_size / (1024*1024));
 
     // Create vCPUs
     for (uint32_t i = 0; i < config.num_vcpus; ++i) {
         auto vcpu_result = hypervisor_->create_vcpu(i);
-        if (!vcpu_result) return std::unexpected(vcpu_result.error());
+        if (!vcpu_result) { fprintf(stderr, "vm: create_vcpu %u failed: %s\n", i, rex::hal::hal_error_str(vcpu_result.error())); return std::unexpected(vcpu_result.error()); }
         vcpus_.push_back(std::move(*vcpu_result));
     }
+    fprintf(stderr, "vm: %u vCPUs created\n", config.num_vcpus);
 
     // Set up direct kernel boot on the BSP (vCPU 0)
     if (!config.boot.kernel_path.empty()) {
 #if defined(__aarch64__)
         auto boot_result = setup_direct_boot_arm64(*vcpus_[0], *mem_mgr_, config.boot);
+        if (!boot_result) { fprintf(stderr, "vm: arm64 boot setup failed: %s\n", rex::hal::hal_error_str(boot_result.error())); }
 #else
         if (looks_like_arm64_kernel(config.boot.kernel_path)) {
             return std::unexpected(rex::hal::HalError::NotSupported);

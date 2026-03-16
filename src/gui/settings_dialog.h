@@ -14,8 +14,8 @@ namespace rex::gui {
 /// Mirrors the TOML config structure for RexPlayer.
 struct RexConfig {
     // General
-    uint32_t cpu_cores  = 2;
-    uint32_t ram_mb     = 2048;
+    uint32_t cpu_cores  = 1;
+    uint32_t ram_mb     = 512;
 
     // Display
     uint32_t display_width  = 1080;
