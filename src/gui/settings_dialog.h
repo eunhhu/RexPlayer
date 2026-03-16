@@ -10,17 +10,27 @@
 
 namespace rex::gui {
 
+#if defined(__aarch64__)
+inline constexpr uint32_t kDefaultCpuCores = 1;
+#else
+inline constexpr uint32_t kDefaultCpuCores = 2;
+#endif
+inline constexpr uint32_t kDefaultRamMb = 2048;
+inline constexpr uint32_t kDefaultDisplayWidth = 1080;
+inline constexpr uint32_t kDefaultDisplayHeight = 1920;
+inline constexpr uint32_t kDefaultDisplayDpi = 440;
+
 /// Configuration data exchanged with SettingsDialog.
 /// Mirrors the TOML config structure for RexPlayer.
 struct RexConfig {
     // General
-    uint32_t cpu_cores  = 1;
-    uint32_t ram_mb     = 512;
+    uint32_t cpu_cores  = kDefaultCpuCores;
+    uint32_t ram_mb     = kDefaultRamMb;
 
     // Display
-    uint32_t display_width  = 1080;
-    uint32_t display_height = 1920;
-    uint32_t dpi            = 440;
+    uint32_t display_width  = kDefaultDisplayWidth;
+    uint32_t display_height = kDefaultDisplayHeight;
+    uint32_t dpi            = kDefaultDisplayDpi;
     int orientation         = 0; // 0=Portrait, 1=Landscape, 2=Auto
 
     // Network

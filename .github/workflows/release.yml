@@ -76,9 +76,12 @@ jobs:
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
           cmake --build build --config Release
-      - name: Build + test Rust
-        run: cargo build --release --workspace && cargo test --workspace --release
-        working-directory: middleware
+      - name: Skip Rust workspace on Windows
+        shell: bash
+        run: |
+          echo "Skipping middleware workspace on Windows."
+          echo "The release artifact only packages the native C++ binary today,"
+          echo "and the experimental Rust virtio/memory stack still pulls Unix-only dependencies."
       - name: Package
         env:
           TAG: ${{ github.ref_name }}

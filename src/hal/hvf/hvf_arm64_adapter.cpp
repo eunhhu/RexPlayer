@@ -8,8 +8,9 @@
 #include <Hypervisor/hv_vcpu_types.h>
 #include <Hypervisor/hv_vm.h>
 #include <Hypervisor/hv_vm_types.h>
-#include <cstring>
 #include <algorithm>
+#include <atomic>
+#include <cstring>
 
 namespace rex::hal {
 
@@ -190,8 +191,9 @@ bool handle_psci_hvc(HvfArm64VcpuImpl& impl) {
             break;
     }
 
-    static int hvc_log_count = 0;
-    if (++hvc_log_count <= 20) {
+    static std::atomic<int> hvc_log_count{0};
+    const auto hvc_log_index = hvc_log_count.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (hvc_log_index <= 20) {
         uint64_t cur_hcr = 0;
         hv_vcpu_get_sys_reg(impl.handle, HV_SYS_REG_HCR_EL2, &cur_hcr);
         fprintf(stderr, "HVC: func=0x%08x → ret=0x%llx pc=0x%llx HCR=0x%llx\n",
@@ -244,16 +246,23 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
 
         VcpuExit exit{};
         auto* ei = impl_->exit_info;
+        const bool is_exception = ei->reason == HV_EXIT_REASON_EXCEPTION;
+        const auto exception_class = is_exception
+            ? static_cast<unsigned long long>((ei->exception.syndrome >> 26) & 0x3F)
+            : 0ULL;
+        const bool is_idle_exit = is_exception && exception_class == 0x01;
 
-        static uint64_t exit_count = 0;
-        if (++exit_count <= 100 || exit_count % 10000 == 0) {
+        static std::atomic<uint64_t> exit_count{0};
+        const auto exit_index = exit_count.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (!is_idle_exit && (exit_index <= 100 || exit_index % 10000 == 0)) {
             uint64_t pc = 0;
             hv_vcpu_get_reg(impl_->handle, HV_REG_PC, &pc);
-            fprintf(stderr, "vcpu exit #%llu: reason=%d pc=0x%llx", exit_count, ei->reason, pc);
-            if (ei->reason == HV_EXIT_REASON_EXCEPTION) {
-                fprintf(stderr, " syndrome=0x%x ec=0x%x",
-                        ei->exception.syndrome,
-                        (ei->exception.syndrome >> 26) & 0x3F);
+            fprintf(stderr, "vcpu exit #%llu: reason=%d pc=0x%llx",
+                    static_cast<unsigned long long>(exit_index), ei->reason, pc);
+            if (is_exception) {
+                const auto syndrome =
+                    static_cast<unsigned long long>(ei->exception.syndrome);
+                fprintf(stderr, " syndrome=0x%llx ec=0x%llx", syndrome, exception_class);
             }
             fprintf(stderr, "\n");
         }

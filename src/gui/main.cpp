@@ -50,26 +50,30 @@ int main(int argc, char* argv[]) {
 
     QCommandLineOption cpus_opt(
         QStringLiteral("cpus"),
-        QStringLiteral("Number of vCPU cores (default: 2)."),
-        QStringLiteral("n"), QStringLiteral("2"));
+        QString("Number of vCPU cores (default: %1).").arg(rex::gui::kDefaultCpuCores),
+        QStringLiteral("n"),
+        QString::number(rex::gui::kDefaultCpuCores));
     parser.addOption(cpus_opt);
 
     QCommandLineOption ram_opt(
         QStringLiteral("ram"),
-        QStringLiteral("RAM size in MB (default: 2048)."),
-        QStringLiteral("mb"), QStringLiteral("2048"));
+        QString("RAM size in MB (default: %1).").arg(rex::gui::kDefaultRamMb),
+        QStringLiteral("mb"),
+        QString::number(rex::gui::kDefaultRamMb));
     parser.addOption(ram_opt);
 
     QCommandLineOption width_opt(
         QStringLiteral("width"),
-        QStringLiteral("Display width in pixels (default: 1080)."),
-        QStringLiteral("px"), QStringLiteral("1080"));
+        QString("Display width in pixels (default: %1).").arg(rex::gui::kDefaultDisplayWidth),
+        QStringLiteral("px"),
+        QString::number(rex::gui::kDefaultDisplayWidth));
     parser.addOption(width_opt);
 
     QCommandLineOption height_opt(
         QStringLiteral("height"),
-        QStringLiteral("Display height in pixels (default: 1920)."),
-        QStringLiteral("px"), QStringLiteral("1920"));
+        QString("Display height in pixels (default: %1).").arg(rex::gui::kDefaultDisplayHeight),
+        QStringLiteral("px"),
+        QString::number(rex::gui::kDefaultDisplayHeight));
     parser.addOption(height_opt);
 
     parser.process(app);
@@ -90,19 +94,10 @@ int main(int argc, char* argv[]) {
 
     // --- Build configuration from CLI args ---
     rex::gui::RexConfig config;
-
-    if (parser.isSet(cpus_opt)) {
-        config.cpu_cores = static_cast<uint32_t>(parser.value(cpus_opt).toUInt());
-    }
-    if (parser.isSet(ram_opt)) {
-        config.ram_mb = static_cast<uint32_t>(parser.value(ram_opt).toUInt());
-    }
-    if (parser.isSet(width_opt)) {
-        config.display_width = static_cast<uint32_t>(parser.value(width_opt).toUInt());
-    }
-    if (parser.isSet(height_opt)) {
-        config.display_height = static_cast<uint32_t>(parser.value(height_opt).toUInt());
-    }
+    config.cpu_cores = static_cast<uint32_t>(parser.value(cpus_opt).toUInt());
+    config.ram_mb = static_cast<uint32_t>(parser.value(ram_opt).toUInt());
+    config.display_width = static_cast<uint32_t>(parser.value(width_opt).toUInt());
+    config.display_height = static_cast<uint32_t>(parser.value(height_opt).toUInt());
 
     // --- Create the GPU display backend ---
     auto gpu_display = std::make_unique<rex::gpu::Display>();
@@ -155,8 +150,9 @@ int main(int argc, char* argv[]) {
                         rex::hal::hal_error_str(result.error()));
                 vm.reset();
             } else {
-                fprintf(stderr, "VM created: %u vCPUs, %u MB RAM\n",
-                        config.cpu_cores, config.ram_mb);
+                fprintf(stderr, "VM created: %u vCPUs, %llu MB RAM\n",
+                        vm->config().num_vcpus,
+                        static_cast<unsigned long long>(vm->config().ram_size / (1024 * 1024)));
             }
         }
     }

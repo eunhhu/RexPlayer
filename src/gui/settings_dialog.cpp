@@ -62,7 +62,7 @@ QWidget* SettingsDialog::createGeneralTab() {
 
     cpu_cores_spin_ = new QSpinBox(cpu_group);
     cpu_cores_spin_->setRange(1, 16);
-    cpu_cores_spin_->setValue(2);
+    cpu_cores_spin_->setValue(static_cast<int>(kDefaultCpuCores));
     cpu_cores_spin_->setSuffix(tr(" cores"));
     cpu_layout->addRow(tr("CPU Cores:"), cpu_cores_spin_);
 
@@ -75,7 +75,7 @@ QWidget* SettingsDialog::createGeneralTab() {
     ram_spin_ = new QSpinBox(mem_group);
     ram_spin_->setRange(512, 16384);
     ram_spin_->setSingleStep(256);
-    ram_spin_->setValue(2048);
+    ram_spin_->setValue(static_cast<int>(kDefaultRamMb));
     ram_spin_->setSuffix(tr(" MB"));
     mem_layout->addRow(tr("RAM:"), ram_spin_);
 
@@ -95,21 +95,21 @@ QWidget* SettingsDialog::createDisplayTab() {
     width_spin_ = new QSpinBox(res_group);
     width_spin_->setRange(320, 3840);
     width_spin_->setSingleStep(1);
-    width_spin_->setValue(1080);
+    width_spin_->setValue(static_cast<int>(kDefaultDisplayWidth));
     width_spin_->setSuffix(tr(" px"));
     res_layout->addRow(tr("Width:"), width_spin_);
 
     height_spin_ = new QSpinBox(res_group);
     height_spin_->setRange(480, 3840);
     height_spin_->setSingleStep(1);
-    height_spin_->setValue(1920);
+    height_spin_->setValue(static_cast<int>(kDefaultDisplayHeight));
     height_spin_->setSuffix(tr(" px"));
     res_layout->addRow(tr("Height:"), height_spin_);
 
     dpi_spin_ = new QSpinBox(res_group);
     dpi_spin_->setRange(120, 640);
     dpi_spin_->setSingleStep(40);
-    dpi_spin_->setValue(440);
+    dpi_spin_->setValue(static_cast<int>(kDefaultDisplayDpi));
     dpi_spin_->setSuffix(tr(" dpi"));
     res_layout->addRow(tr("DPI:"), dpi_spin_);
 
