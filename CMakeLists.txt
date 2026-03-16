@@ -77,6 +77,7 @@ endif()
 add_library(rex_vmm STATIC
     src/vmm/vm.cpp
     src/vmm/memory_manager.cpp
+    src/vmm/memory_optimizer.cpp
     src/vmm/device_manager.cpp
     src/vmm/boot_x86.cpp
     src/vmm/boot_arm64.cpp
