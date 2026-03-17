@@ -46,3 +46,5 @@ third_party/build/
 build-review-arm/
 build-local-check/
 dist-check/
+.cache/
+.claude/worktrees/
