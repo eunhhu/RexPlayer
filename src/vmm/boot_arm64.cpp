@@ -266,12 +266,14 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_string("compatible", "arm,armv8-timer");
     // interrupts: PPI 13 (secure phys), PPI 14 (non-secure phys),
     //             PPI 11 (virtual), PPI 10 (hypervisor)
-    // Format: GIC_PPI(1) irq_num flags(edge-rising=4)
+    // Format: GIC_PPI(1), irq_num, (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_HIGH)
+    // The CPU mask is required for PPIs. Without it Linux reports
+    // "arch_timer: No interrupt available, giving up".
     builder.property_cells("interrupts", {
-        1, 13, 4,  // secure physical timer
-        1, 14, 4,  // non-secure physical timer
-        1, 11, 4,  // virtual timer
-        1, 10, 4,  // hypervisor timer
+        1, 13, 0x104,  // secure physical timer
+        1, 14, 0x104,  // non-secure physical timer
+        1, 11, 0x104,  // virtual timer
+        1, 10, 0x104,  // hypervisor timer
     });
     builder.property_cells("always-on", {});
     builder.end_node();

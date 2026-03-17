@@ -14,6 +14,19 @@
 
 namespace rex::hal {
 
+struct IccState {
+    uint64_t pmr = 0;
+    uint64_t ctlr = 0;
+    uint64_t igrpen1 = 0;
+    uint64_t bpr1 = 0;
+    uint64_t sre = 0x7; // SRE|DFB|DIB
+    uint64_t ap0r[4] = {};
+    uint64_t ap1r[4] = {};
+    bool vtimer_irq_pending = false;
+    bool vtimer_masked = false;
+    uint32_t active_intid = 1023; // spurious
+};
+
 // ============================================================================
 // Internal vCPU handle (direct HVF API calls)
 // ============================================================================
@@ -30,6 +43,7 @@ struct HvfArm64VcpuImpl {
     X86Sregs pending_sregs{};
     bool has_pending_regs = false;
     bool has_pending_sregs = false;
+    IccState icc{};
 
     explicit HvfArm64VcpuImpl(VcpuId vid) : id(vid) {
         // Defer creation — HVF requires vCPU to be created on the thread that runs it
@@ -43,6 +57,7 @@ struct HvfArm64VcpuImpl {
         hv_return_t ret = hv_vcpu_create(&handle, &exit_info, config);
         if (config) os_release(config);
         if (ret != HV_SUCCESS) {
+            fprintf(stderr, "vcpu %u: hv_vcpu_create failed: %d\n", id, ret);
             valid = false;
             return false;
         }
@@ -67,11 +82,19 @@ struct HvfArm64VcpuImpl {
                      | (1ULL << 27)  // TWI
                      | (1ULL << 28)  // TWE
                      | (1ULL << 31); // RW
-        hv_vcpu_set_sys_reg(handle, HV_SYS_REG_HCR_EL2, hcr);
+        if (hv_vcpu_set_sys_reg(handle, HV_SYS_REG_HCR_EL2, hcr) != HV_SUCCESS) {
+            fprintf(stderr, "vcpu %u: failed to set HCR_EL2, continuing with HVF defaults\n", id);
+        }
 
         // Enable vtimer delivery (unmask)
         hv_return_t vtimer_ret = hv_vcpu_set_vtimer_mask(handle, false);
         fprintf(stderr, "vcpu %u: vtimer unmask result=%d\n", id, vtimer_ret);
+        if (vtimer_ret != HV_SUCCESS) {
+            fprintf(stderr, "vcpu %u: failed to unmask vtimer: %d\n", id, vtimer_ret);
+            valid = false;
+            return false;
+        }
+        icc.vtimer_masked = false;
 
         fprintf(stderr, "vcpu %u: created on thread, HCR_EL2=0x%llx\n", id, hcr);
 
@@ -117,6 +140,11 @@ struct HvfArm64VcpuImpl {
 };
 
 namespace {
+
+constexpr uint32_t kGicTimerIntid = 16 + 11; // PPI 11 → INTID 27
+constexpr uint32_t kGicSpuriousIntid = 1023;
+constexpr uint64_t kGicTimerPriority = 0x80;
+constexpr uint64_t kGicIdlePriority = 0xFF;
 
 // PSCI function IDs (SMCCC convention)
 constexpr uint32_t PSCI_VERSION       = 0x84000000;
@@ -211,19 +239,53 @@ bool handle_psci_hvc(HvfArm64VcpuImpl& impl) {
     return true;
 }
 
-/// Minimal GICv3 CPU-interface (ICC) system register emulation.
-/// The kernel accesses these via MSR/MRS (ec=0x18) instead of MMIO.
-/// We emulate just enough so the GIC driver initialises and the
-/// timer/IRQ path works.
-struct IccState {
-    uint64_t pmr      = 0;          // ICC_PMR_EL1: priority mask
-    uint64_t ctlr     = 0;          // ICC_CTLR_EL1
-    uint64_t igrpen1  = 0;          // ICC_IGRPEN1_EL1
-    uint64_t bpr1     = 0;          // ICC_BPR1_EL1
-    uint64_t sre      = 0x7;        // ICC_SRE_EL1: SRE|DFB|DIB (system regs enabled)
-    uint64_t ap0r[4]  = {};         // ICC_AP0R<n>_EL1
-    uint64_t ap1r[4]  = {};         // ICC_AP1R<n>_EL1
-};
+bool set_vtimer_mask(HvfArm64VcpuImpl& impl, bool masked) {
+    if (hv_vcpu_set_vtimer_mask(impl.handle, masked) != HV_SUCCESS) {
+        return false;
+    }
+    impl.icc.vtimer_masked = masked;
+    return true;
+}
+
+uint32_t highest_pending_intid(const IccState& icc) {
+    if (!(icc.igrpen1 & 1)) {
+        return kGicSpuriousIntid;
+    }
+    if (icc.vtimer_irq_pending && icc.pmr > kGicTimerPriority) {
+        return kGicTimerIntid;
+    }
+    return kGicSpuriousIntid;
+}
+
+bool queue_pending_irq(HvfArm64VcpuImpl& impl) {
+    if (impl.icc.active_intid != kGicSpuriousIntid) {
+        return true;
+    }
+    if (highest_pending_intid(impl.icc) == kGicSpuriousIntid) {
+        return true;
+    }
+    const auto ret =
+        hv_vcpu_set_pending_interrupt(impl.handle, HV_INTERRUPT_TYPE_IRQ, true);
+    if (ret != HV_SUCCESS) {
+        fprintf(stderr, "vcpu %u: failed to queue IRQ pending: %d\n", impl.id, ret);
+        return false;
+    }
+    return true;
+}
+
+bool complete_irq(HvfArm64VcpuImpl& impl, uint64_t iar) {
+    const auto intid = static_cast<uint32_t>(iar & 0x3FF);
+    if (intid == kGicSpuriousIntid) {
+        return true;
+    }
+    if (intid == kGicTimerIntid) {
+        impl.icc.active_intid = kGicSpuriousIntid;
+        if (impl.icc.vtimer_masked) {
+            return set_vtimer_mask(impl, false);
+        }
+    }
+    return true;
+}
 
 /// Decode ISS for EC=0x18 and handle ICC_* system register accesses.
 /// Returns true if the access was handled (PC advanced), false otherwise.
@@ -269,16 +331,27 @@ bool handle_icc_sysreg(HvfArm64VcpuImpl& impl, uint32_t syndrome, IccState& icc)
     if (is_read) {
         switch (key) {
             case 0x0460: val = icc.pmr; break;              // ICC_PMR_EL1
-            case 0x0CC0: val = 0x3FF; break;                // ICC_IAR1_EL1: spurious (1023)
-            case 0x0C80: val = 0x3FF; break;                // ICC_IAR0_EL1: spurious
-            case 0x0CC2: val = 0x3FF; break;                // ICC_HPPIR1_EL1: no pending
+            case 0x0CC0: {                                  // ICC_IAR1_EL1
+                val = highest_pending_intid(icc);
+                if (val != kGicSpuriousIntid) {
+                    icc.vtimer_irq_pending = false;
+                    icc.active_intid = static_cast<uint32_t>(val);
+                }
+                break;
+            }
+            case 0x0C80: val = kGicSpuriousIntid; break;    // ICC_IAR0_EL1: spurious
+            case 0x0CC2: val = highest_pending_intid(icc); break; // ICC_HPPIR1_EL1
             case 0x0CC3: val = icc.bpr1; break;             // ICC_BPR1_EL1
             case 0x0C83: val = 0; break;                    // ICC_BPR0_EL1
             case 0x0CC4: val = icc.ctlr; break;             // ICC_CTLR_EL1
             case 0x0CC5: val = icc.sre; break;              // ICC_SRE_EL1
             case 0x0CC6: val = 0; break;                    // ICC_IGRPEN0_EL1
             case 0x0CC7: val = icc.igrpen1; break;          // ICC_IGRPEN1_EL1
-            case 0x0CB3: val = 0xFF; break;                 // ICC_RPR_EL1: idle priority
+            case 0x0CB3:
+                val = icc.active_intid == kGicSpuriousIntid
+                    ? kGicIdlePriority
+                    : kGicTimerPriority;
+                break;                                      // ICC_RPR_EL1
             // ICC_AP0R<n>_EL1 (n=0..3)
             case 0x0C84: case 0x0C85: case 0x0C86: case 0x0C87:
                 val = icc.ap0r[key - 0x0C84]; break;
@@ -303,15 +376,19 @@ bool handle_icc_sysreg(HvfArm64VcpuImpl& impl, uint32_t syndrome, IccState& icc)
 
         switch (key) {
             case 0x0460: icc.pmr = val; break;              // ICC_PMR_EL1
-            case 0x0CC1: break;                              // ICC_EOIR1_EL1: EOI (ignore)
+            case 0x0CC1:
+                if (!complete_irq(impl, val)) return false;
+                break;                                      // ICC_EOIR1_EL1
             case 0x0C81: break;                              // ICC_EOIR0_EL1: EOI (ignore)
             case 0x0CC3: icc.bpr1 = val; break;             // ICC_BPR1_EL1
             case 0x0C83: break;                              // ICC_BPR0_EL1 (ignore)
             case 0x0CC4: icc.ctlr = val; break;             // ICC_CTLR_EL1
-            case 0x0CC5: break;                              // ICC_SRE_EL1: read-only (ignore write)
+            case 0x0CC5: icc.sre = val | 0x1; break;        // ICC_SRE_EL1
             case 0x0CC6: break;                              // ICC_IGRPEN0_EL1 (ignore)
             case 0x0CC7: icc.igrpen1 = val; break;          // ICC_IGRPEN1_EL1
-            case 0x0CB1: break;                              // ICC_DIR_EL1: deactivate (ignore)
+            case 0x0CB1:
+                if (!complete_irq(impl, val)) return false;
+                break;                                      // ICC_DIR_EL1
             case 0x0CB5: break;                              // ICC_SGI1R_EL1: SGI (ignore for now)
             // ICC_AP0R<n>_EL1
             case 0x0C84: case 0x0C85: case 0x0C86: case 0x0C87:
@@ -372,9 +449,11 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
     if (!impl_->ensure_created())
         return std::unexpected(HalError::InternalError);
 
-    static IccState icc_state;  // Per-vCPU ICC register state
-
     for (;;) {
+        if (!queue_pending_irq(*impl_)) {
+            return std::unexpected(HalError::InternalError);
+        }
+
         hv_return_t ret = hv_vcpu_run(impl_->handle);
         if (ret != HV_SUCCESS) {
             fprintf(stderr, "hv_vcpu_run failed: %d\n", ret);
@@ -538,12 +617,9 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                         exit.mmio.data = val;
                     }
                 } else if (ec == 0x01) { // WFI/WFE → Hlt
-                    // Unmask vtimer before returning to VMM so the next
-                    // timer interrupt can fire and wake us from WFI
-                    hv_vcpu_set_vtimer_mask(impl_->handle, false);
                     exit.reason = VcpuExit::Reason::Hlt;
                 } else if (ec == 0x18) { // MSR/MRS trap → ICC sysreg emulation
-                    if (handle_icc_sysreg(*impl_, syndrome, icc_state)) {
+                    if (handle_icc_sysreg(*impl_, syndrome, impl_->icc)) {
                         continue; // Handled, keep running
                     }
                     // Unhandled sysreg — log and skip
@@ -605,11 +681,13 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                     fprintf(stderr, "VTIMER #%llu: injecting IRQ, pc=0x%llx\n",
                             static_cast<unsigned long long>(vt_idx), pc);
                 }
-                // 1) Mask vtimer so HVF stops re-firing until we unmask
-                hv_vcpu_set_vtimer_mask(impl_->handle, true);
-                // 2) Inject IRQ into the guest so it takes the timer interrupt
-                hv_vcpu_set_pending_interrupt(impl_->handle, HV_INTERRUPT_TYPE_IRQ, true);
-                // 3) Continue running — don't return to VMM
+                impl_->icc.vtimer_irq_pending = true;
+                if (!set_vtimer_mask(*impl_, true)) {
+                    return std::unexpected(HalError::InternalError);
+                }
+                if (!queue_pending_irq(*impl_)) {
+                    return std::unexpected(HalError::InternalError);
+                }
                 continue;
             }
             case HV_EXIT_REASON_CANCELED:
