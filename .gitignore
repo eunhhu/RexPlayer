@@ -44,3 +44,5 @@ third_party/build/
 .omc/
 .omx/
 build-review-arm/
+build-local-check/
+dist-check/
