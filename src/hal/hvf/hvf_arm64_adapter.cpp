@@ -451,7 +451,7 @@ HalResult<VcpuExit> HvfArm64VcpuAdapter::run() {
                             // --- GICD (distributor) registers: offset 0x0000-0xFFFF ---
                             if (off < 0xA0000) {
                                 switch (off) {
-                                    case 0x0000: resp = (1 << 4) | 1; break; // GICD_CTLR: ARE_NS | EnableGrp1
+                                    case 0x0000: resp = (1 << 6) | (1 << 4) | (1 << 1) | 1; break; // GICD_CTLR: DS | ARE_NS | EnableGrp1NS | EnableGrp0
                                     case 0x0004: // GICD_TYPER
                                         resp = (3ULL << 19)  // IDbits=15 (16-bit INTID)
                                              | (0ULL << 11)  // SecurityExtn=0

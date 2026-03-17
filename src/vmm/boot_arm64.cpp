@@ -193,11 +193,16 @@ static std::vector<uint8_t> generate_minimal_dtb(
 {
     FdtBuilder builder;
 
+    // --- interrupt-parent phandle ---
+    // Use phandle 1 for GIC — must be declared before any child nodes
+    constexpr uint32_t GIC_PHANDLE = 1;
+
     builder.begin_node("");
     builder.property_string("compatible", "linux,dummy-virt");
     builder.property_string("model", "RexPlayer ARM64");
     builder.property_u32("#address-cells", 2);
     builder.property_u32("#size-cells", 2);
+    builder.property_u32("interrupt-parent", GIC_PHANDLE);
 
     builder.begin_node("chosen");
     builder.property_string("stdout-path", "/pl011@9000000");
@@ -223,11 +228,6 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_string("compatible", "arm,psci-1.0");
     builder.property_string("method", "hvc");
     builder.end_node();
-
-    // --- interrupt-parent phandle ---
-    // Use phandle 1 for GIC
-    constexpr uint32_t GIC_PHANDLE = 1;
-    builder.property_u32("interrupt-parent", GIC_PHANDLE);
 
     // --- CPUs ---
     builder.begin_node("cpus");

@@ -76,6 +76,12 @@ int main(int argc, char* argv[]) {
         QString::number(rex::gui::kDefaultDisplayHeight));
     parser.addOption(height_opt);
 
+    QCommandLineOption initrd_opt(
+        QStringLiteral("initrd"),
+        QStringLiteral("Path to initrd/initramfs image."),
+        QStringLiteral("file"));
+    parser.addOption(initrd_opt);
+
     parser.process(app);
 
     if (parser.isSet(config_opt)) {
@@ -132,6 +138,9 @@ int main(int argc, char* argv[]) {
             vm_config.num_vcpus = config.cpu_cores;
             vm_config.ram_size = static_cast<uint64_t>(config.ram_mb) * 1024 * 1024;
             vm_config.boot.kernel_path = kernel_path;
+            if (parser.isSet(initrd_opt)) {
+                vm_config.boot.initrd_path = parser.value(initrd_opt).toStdString();
+            }
 
 #if defined(__aarch64__)
             vm_config.boot.cmdline =
