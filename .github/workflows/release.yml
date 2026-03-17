@@ -30,7 +30,9 @@ jobs:
           mkdir -p staging
           cp build/rexplayer staging/ 2>/dev/null || true
           cp build/librex_*.a staging/ 2>/dev/null || true
+          ls -la staging/
           tar czf "rexplayer-${TAG}-linux-x86_64.tar.gz" -C staging .
+          ls -la *.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
@@ -54,9 +56,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           mkdir -p staging
-          cp build/rexplayer staging/ 2>/dev/null || true
+          if [ -d build/rexplayer.app ]; then
+            cp -R build/rexplayer.app staging/
+          elif [ -f build/rexplayer ]; then
+            cp build/rexplayer staging/
+          fi
           cp build/librex_*.a staging/ 2>/dev/null || true
+          ls -la staging/
           tar czf "rexplayer-${TAG}-macos.tar.gz" -C staging .
+          ls -la *.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -76,12 +84,23 @@ jobs:
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
           cmake --build build --config Release
-      - name: Skip Rust workspace on Windows
+      - name: Check Rust (cross-platform crates)
+        shell: bash
+        working-directory: middleware
+        run: |
+          echo "Building cross-platform Rust crates (excluding Unix-only rex-devices and rex-ffi)..."
+          cargo check -p rex-config -p rex-network -p rex-filesync -p rex-frida -p rex-update
+      - name: Deploy Qt DLLs
         shell: bash
         run: |
-          echo "Skipping middleware workspace on Windows."
-          echo "The release artifact only packages the native C++ binary today,"
-          echo "and the experimental Rust virtio/memory stack still pulls Unix-only dependencies."
+          if [ -f "build/Release/rexplayer.exe" ]; then
+            echo "Found rexplayer.exe, running windeployqt..."
+            windeployqt build/Release/rexplayer.exe --release --no-translations --no-opengl-sw 2>/dev/null || true
+          else
+            echo "::warning::rexplayer.exe not found in build/Release/"
+            echo "Listing build output:"
+            find build -name "*.exe" -o -name "*.lib" -o -name "*.dll" 2>/dev/null || true
+          fi
       - name: Package
         env:
           TAG: ${{ github.ref_name }}
@@ -91,7 +110,12 @@ jobs:
           cp build/Release/rexplayer.exe staging/ 2>/dev/null || true
           cp build/Release/*.dll staging/ 2>/dev/null || true
           cp build/Release/librex_*.lib staging/ 2>/dev/null || true
-          cd staging && 7z a "../rexplayer-${TAG}-windows-x86_64.zip" . || true
+          cp build/librex_*.lib staging/ 2>/dev/null || true
+          cp build/*/librex_*.lib staging/ 2>/dev/null || true
+          echo "Staging contents:"
+          ls -la staging/
+          cd staging && 7z a "../rexplayer-${TAG}-windows-x86_64.zip" .
+          cd .. && ls -la *.zip
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
@@ -100,7 +124,11 @@ jobs:
 
   release:
     needs: [build-linux, build-macos, build-windows]
-    if: always() && !cancelled()
+    if: >-
+      always() && !cancelled() &&
+      (needs.build-linux.result == 'success' ||
+       needs.build-macos.result == 'success' ||
+       needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -109,7 +137,17 @@ jobs:
         with:
           path: artifacts
       - name: List artifacts
-        run: find artifacts -type f
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f
+      - name: Verify at least one artifact exists
+        run: |
+          count=$(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+          echo "Found ${count} release artifact(s)"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No release artifacts found"
+            exit 1
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
