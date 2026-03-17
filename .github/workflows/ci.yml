@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+      - name: Build C++
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+      - name: Test C++
+        run: ctest --test-dir build --output-on-failure
+      - name: Build + test Rust
+        run: cargo build --workspace && cargo test --workspace
+        working-directory: middleware
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Qt
+        run: brew install qt@6
+      - name: Build C++
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6) && cmake --build build
+      - name: Build + test Rust
+        run: cargo build --workspace && cargo test --workspace
+        working-directory: middleware
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.0'
+      - name: Build C++
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
+          cmake --build build --config Release
+      - name: Check Rust (cross-platform crates)
+        shell: bash
+        working-directory: middleware
+        run: |
+          echo "Checking cross-platform Rust crates (excluding Unix-only rex-devices and rex-ffi)..."
+          cargo check -p rex-config -p rex-network -p rex-filesync -p rex-frida -p rex-update
