@@ -144,8 +144,9 @@ int main(int argc, char* argv[]) {
 
 #if defined(__aarch64__)
             vm_config.boot.cmdline =
-                "console=ttyAMA0 earlycon=pl011,0x09000000 "
-                "nosmp nokaslr androidboot.hardware=rex "
+                "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000 "
+                "nosmp nokaslr rdinit=/bin/sh "
+                "androidboot.hardware=rex "
                 "androidboot.selinux=permissive";
 #else
             vm_config.boot.cmdline =

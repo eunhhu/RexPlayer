@@ -103,6 +103,16 @@ public:
         property(name, data);
     }
 
+    void property_stringlist(std::string_view name,
+                            std::initializer_list<std::string_view> strings) {
+        std::vector<uint8_t> data;
+        for (auto s : strings) {
+            data.insert(data.end(), s.begin(), s.end());
+            data.push_back('\0');
+        }
+        property(name, data);
+    }
+
     void property_cells(std::string_view name, const std::vector<uint32_t>& cells) {
         std::vector<uint8_t> data;
         data.reserve(cells.size() * sizeof(uint32_t));
@@ -205,7 +215,7 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_u32("interrupt-parent", GIC_PHANDLE);
 
     builder.begin_node("chosen");
-    builder.property_string("stdout-path", "/pl011@9000000");
+    builder.property_string("stdout-path", "/uart@9000000");
     if (!cmdline.empty()) {
         builder.property_string("bootargs", cmdline);
     }
@@ -278,15 +288,30 @@ static std::vector<uint8_t> generate_minimal_dtb(
     builder.property_cells("always-on", {});
     builder.end_node();
 
-    // --- PL011 UART at 0x09000000 ---
-    builder.begin_node("pl011@9000000");
-    builder.property_string("compatible", "arm,pl011\0arm,primecell");
+    // --- Fixed clock for AMBA peripherals (24 MHz) ---
+    constexpr uint32_t CLK_PHANDLE = 2;
+    builder.begin_node("apb-pclk");
+    builder.property_string("compatible", "fixed-clock");
+    builder.property_u32("#clock-cells", 0);
+    builder.property_u32("clock-frequency", 24000000);
+    builder.property_u32("phandle", CLK_PHANDLE);
+    builder.end_node();
+
+    // --- SBSA Generic UART at 0x09000000 ---
+    // Uses arm,sbsa-uart which doesn't require clocks or AMBA bus
+    builder.begin_node("uart@9000000");
+    builder.property_string("compatible", "arm,sbsa-uart");
     auto uart_reg = cells_for_u64(0x09000000);
     auto uart_size = cells_for_u64(0x1000);
     uart_reg.insert(uart_reg.end(), uart_size.begin(), uart_size.end());
     builder.property_cells("reg", uart_reg);
-    // UART interrupt: SPI 1, level-high
-    builder.property_cells("interrupts", {0, 1, 4});
+    builder.property_cells("interrupts", {0, 1, 4}); // SPI 1, level-high
+    builder.property_u32("current-speed", 115200);
+    builder.end_node();
+
+    // --- Aliases (maps serial0 -> ttyAMA0 -> /dev/console) ---
+    builder.begin_node("aliases");
+    builder.property_string("serial0", "/uart@9000000");
     builder.end_node();
 
     builder.end_node(); // root
