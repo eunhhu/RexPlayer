@@ -17,16 +17,24 @@ endif()
 option(REX_ENABLE_TESTS "Build tests" ON)
 
 # --- Find dependencies ---
-find_package(Qt6 COMPONENTS Widgets Gui Core Network REQUIRED)
+find_package(Qt6 COMPONENTS Widgets Gui Core Network Test REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPICE_CLIENT REQUIRED spice-client-glib-2.0)
-pkg_check_modules(GLIB REQUIRED glib-2.0)
+pkg_check_modules(SPICE_CLIENT spice-client-glib-2.0)
+pkg_check_modules(GLIB glib-2.0)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # --- Libraries will be added by subsequent tasks ---
+
+# --- QEMU process management ---
+add_library(rex_qemu STATIC
+    src/qemu/qmp_client.cpp
+    src/qemu/qemu_config.cpp
+)
+target_include_directories(rex_qemu PUBLIC src/qemu)
+target_link_libraries(rex_qemu PUBLIC Qt6::Core Qt6::Network)
 
 # --- Tests ---
 if(REX_ENABLE_TESTS)
