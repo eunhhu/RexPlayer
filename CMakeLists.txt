@@ -19,8 +19,8 @@ option(REX_ENABLE_TESTS "Build tests" ON)
 # --- Find dependencies ---
 find_package(Qt6 COMPONENTS Widgets Gui Core Network Test REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPICE_CLIENT spice-client-glib-2.0)
-pkg_check_modules(GLIB glib-2.0)
+pkg_check_modules(SPICE_CLIENT IMPORTED_TARGET spice-client-glib-2.0)
+pkg_check_modules(GLIB IMPORTED_TARGET glib-2.0)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -44,8 +44,22 @@ add_library(rex_spice STATIC
     src/spice/spice_input.cpp
 )
 target_include_directories(rex_spice PUBLIC src/spice)
-target_include_directories(rex_spice PRIVATE ${SPICE_CLIENT_INCLUDE_DIRS} ${GLIB_INCLUDE_DIRS})
-target_link_libraries(rex_spice PUBLIC Qt6::Core Qt6::Gui ${SPICE_CLIENT_LIBRARIES} ${GLIB_LIBRARIES})
+target_link_libraries(rex_spice PUBLIC Qt6::Core Qt6::Gui PkgConfig::SPICE_CLIENT PkgConfig::GLIB)
+
+# --- GUI executable ---
+add_executable(rexplayer
+    src/gui/main.cpp
+    src/gui/mainwindow.cpp
+    src/gui/display_widget.cpp
+    src/gui/input_handler.cpp
+    src/gui/settings_dialog.cpp
+    src/gui/keymap_editor.cpp
+)
+target_link_libraries(rexplayer PRIVATE
+    rex_qemu rex_spice
+    Qt6::Widgets Qt6::Gui Qt6::Core
+)
+target_include_directories(rexplayer PRIVATE src/gui)
 
 # --- Tests ---
 if(REX_ENABLE_TESTS)

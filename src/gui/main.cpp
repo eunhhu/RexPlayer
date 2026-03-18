@@ -1,190 +1,82 @@
 #include "mainwindow.h"
-#include "settings_dialog.h"
-#include "../gpu/display.h"
-#include "../vmm/include/rex/vmm/vm.h"
-#include "../vmm/embedded_kernel.h"
+#include "../qemu/qemu_process.h"
+#include "../qemu/qemu_config.h"
+#include "../spice/spice_client.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QStyleFactory>
-
 #include <cstdio>
-#include <memory>
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
-    QApplication::setApplicationName(QStringLiteral("RexPlayer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.1.0"));
-    QApplication::setOrganizationName(QStringLiteral("RexPlayer"));
+    QApplication::setApplicationName("RexPlayer");
+    QApplication::setApplicationVersion("0.2.0");
+    QApplication::setOrganizationName("RexPlayer");
 
-    // Use Fusion style for consistent cross-platform appearance
-    if (QStyleFactory::keys().contains(QStringLiteral("Fusion"))) {
-        QApplication::setStyle(QStringLiteral("Fusion"));
-    }
+    if (QStyleFactory::keys().contains("Fusion"))
+        QApplication::setStyle("Fusion");
 
-    // --- Command-line argument parsing ---
     QCommandLineParser parser;
-    parser.setApplicationDescription(
-        QStringLiteral("RexPlayer - Lightweight Android app player"));
+    parser.setApplicationDescription("RexPlayer - Android app player powered by QEMU");
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption config_opt(
-        QStringList() << QStringLiteral("c") << QStringLiteral("config"),
-        QStringLiteral("Path to TOML configuration file."),
-        QStringLiteral("file"));
-    parser.addOption(config_opt);
-
-    QCommandLineOption kernel_opt(
-        QStringList() << QStringLiteral("k") << QStringLiteral("kernel"),
-        QStringLiteral("Path to the kernel image (bzImage / Image)."),
-        QStringLiteral("file"));
+    QCommandLineOption kernel_opt({"k", "kernel"}, "Kernel image path.", "file");
+    QCommandLineOption system_opt({"s", "system-image"}, "System image path.", "file");
+    QCommandLineOption cpus_opt("cpus", "Number of vCPUs (default: 4).", "n", "4");
+    QCommandLineOption ram_opt("ram", "RAM in MB (default: 4096).", "mb", "4096");
+    QCommandLineOption initrd_opt("initrd", "Initrd/initramfs path.", "file");
+    QCommandLineOption qemu_opt("qemu-binary", "Path to QEMU binary.", "file");
     parser.addOption(kernel_opt);
-
-    QCommandLineOption system_opt(
-        QStringList() << QStringLiteral("s") << QStringLiteral("system-image"),
-        QStringLiteral("Path to the Android system image."),
-        QStringLiteral("file"));
     parser.addOption(system_opt);
-
-    QCommandLineOption cpus_opt(
-        QStringLiteral("cpus"),
-        QString("Number of vCPU cores (default: %1).").arg(rex::gui::kDefaultCpuCores),
-        QStringLiteral("n"),
-        QString::number(rex::gui::kDefaultCpuCores));
     parser.addOption(cpus_opt);
-
-    QCommandLineOption ram_opt(
-        QStringLiteral("ram"),
-        QString("RAM size in MB (default: %1).").arg(rex::gui::kDefaultRamMb),
-        QStringLiteral("mb"),
-        QString::number(rex::gui::kDefaultRamMb));
     parser.addOption(ram_opt);
-
-    QCommandLineOption width_opt(
-        QStringLiteral("width"),
-        QString("Display width in pixels (default: %1).").arg(rex::gui::kDefaultDisplayWidth),
-        QStringLiteral("px"),
-        QString::number(rex::gui::kDefaultDisplayWidth));
-    parser.addOption(width_opt);
-
-    QCommandLineOption height_opt(
-        QStringLiteral("height"),
-        QString("Display height in pixels (default: %1).").arg(rex::gui::kDefaultDisplayHeight),
-        QStringLiteral("px"),
-        QString::number(rex::gui::kDefaultDisplayHeight));
-    parser.addOption(height_opt);
-
-    QCommandLineOption initrd_opt(
-        QStringLiteral("initrd"),
-        QStringLiteral("Path to initrd/initramfs image."),
-        QStringLiteral("file"));
     parser.addOption(initrd_opt);
-
+    parser.addOption(qemu_opt);
     parser.process(app);
 
-    if (parser.isSet(config_opt)) {
-        fprintf(stderr,
-                "--config is not supported by the current native runtime; "
-                "use explicit CLI overrides instead.\n");
-        return 2;
+    rex::qemu::QemuConfig qemu_config;
+    qemu_config.vcpus = parser.value(cpus_opt).toUInt();
+    qemu_config.ram_mb = parser.value(ram_opt).toUInt();
+    if (parser.isSet(kernel_opt))
+        qemu_config.kernel_path = parser.value(kernel_opt);
+    if (parser.isSet(system_opt))
+        qemu_config.system_image_path = parser.value(system_opt);
+    if (parser.isSet(initrd_opt))
+        qemu_config.initrd_path = parser.value(initrd_opt);
+    if (parser.isSet(qemu_opt))
+        qemu_config.qemu_binary = parser.value(qemu_opt);
+    if (!qemu_config.kernel_path.isEmpty()) {
+        qemu_config.cmdline =
+            "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000 "
+            "androidboot.hardware=rex androidboot.selinux=permissive";
     }
+    qemu_config.generateSocketPaths("");
 
-    if (parser.isSet(system_opt)) {
-        fprintf(stderr,
-                "--system-image is not wired into the current native runtime; "
-                "direct kernel boot is the only supported launch path.\n");
-        return 2;
-    }
+    auto* qemu = new rex::qemu::QemuProcess();
+    auto* spice = new rex::spice::SpiceClient();
 
-    // --- Build configuration from CLI args ---
-    rex::gui::RexConfig config;
-    config.cpu_cores = static_cast<uint32_t>(parser.value(cpus_opt).toUInt());
-    config.ram_mb = static_cast<uint32_t>(parser.value(ram_opt).toUInt());
-    config.display_width = static_cast<uint32_t>(parser.value(width_opt).toUInt());
-    config.display_height = static_cast<uint32_t>(parser.value(height_opt).toUInt());
-
-    // --- Create the GPU display backend ---
-    auto gpu_display = std::make_unique<rex::gpu::Display>();
-    gpu_display->resize(config.display_width, config.display_height);
-
-    // --- Create the VM ---
-    // If no kernel is specified, generate a built-in test kernel automatically.
-    std::unique_ptr<rex::vmm::Vm> vm;
-
-    {
-        std::string kernel_path;
-
-        if (parser.isSet(kernel_opt)) {
-            kernel_path = parser.value(kernel_opt).toStdString();
-        } else {
-            // Generate embedded test kernel for the current architecture
-#if defined(__aarch64__)
-            auto kernel = rex::vmm::generate_test_kernel_arm64();
-            kernel_path = rex::vmm::save_temp_kernel(kernel, "rex_test_arm64.bin");
-            fprintf(stderr, "No kernel specified — using built-in ARM64 test kernel\n");
-#elif defined(__x86_64__)
-            auto kernel = rex::vmm::generate_test_kernel_x86();
-            kernel_path = rex::vmm::save_temp_kernel(kernel, "rex_test_x86.bin");
-            fprintf(stderr, "No kernel specified — using built-in x86 test kernel\n");
-#endif
-        }
-
-        if (!kernel_path.empty()) {
-            vm = std::make_unique<rex::vmm::Vm>();
-
-            rex::vmm::VmCreateConfig vm_config;
-            vm_config.num_vcpus = config.cpu_cores;
-            vm_config.ram_size = static_cast<uint64_t>(config.ram_mb) * 1024 * 1024;
-            vm_config.boot.kernel_path = kernel_path;
-            if (parser.isSet(initrd_opt)) {
-                vm_config.boot.initrd_path = parser.value(initrd_opt).toStdString();
-            }
-
-#if defined(__aarch64__)
-            vm_config.boot.cmdline =
-                "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000 "
-                "nosmp nokaslr rdinit=/bin/sh "
-                "androidboot.hardware=rex "
-                "androidboot.selinux=permissive";
+    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [spice, &qemu_config]() {
+        fprintf(stderr, "main: QMP ready, connecting SPICE...\n");
+#ifdef Q_OS_WIN
+        spice->connectToHost("127.0.0.1", 5930);
 #else
-            vm_config.boot.cmdline =
-                "console=ttyS0 androidboot.hardware=rex "
-                "androidboot.selinux=permissive";
+        spice->connectToSocket(qemu_config.spice_socket_path);
 #endif
+    });
 
-            auto result = vm->create(vm_config);
-            if (!result) {
-                fprintf(stderr, "Failed to create VM: %s\n",
-                        rex::hal::hal_error_str(result.error()));
-                vm.reset();
-            } else {
-                fprintf(stderr, "VM created: %u vCPUs, %llu MB RAM\n",
-                        vm->config().num_vcpus,
-                        static_cast<unsigned long long>(vm->config().ram_size / (1024 * 1024)));
-            }
-        }
-    }
-
-    // --- Create and show the main window ---
     rex::gui::MainWindow window;
-    window.applyConfig(config);
-    window.setDisplay(gpu_display.get());
-
-    if (vm) {
-        window.setVm(vm.get());
-        // Auto-start the VM
-        auto start_result = vm->start();
-        if (start_result) {
-            fprintf(stderr, "VM started — vCPU running\n");
-        } else {
-            fprintf(stderr, "VM start failed: %s\n",
-                    rex::hal::hal_error_str(start_result.error()));
-        }
-    }
-
+    window.setQemuProcess(qemu);
+    window.setSpiceClient(spice);
     window.show();
 
-    return app.exec();
+    if (!qemu_config.kernel_path.isEmpty() || !qemu_config.system_image_path.isEmpty())
+        qemu->start(qemu_config);
+
+    int ret = app.exec();
+    delete spice;
+    delete qemu;
+    return ret;
 }
