@@ -16,7 +16,7 @@ TEST(QemuConfigTest, DefaultCommandLineContainsRequiredArgs) {
     EXPECT_TRUE(args.contains("-m"));
     EXPECT_TRUE(args.contains("-display"));
     EXPECT_TRUE(args.contains("none"));
-    EXPECT_TRUE(args.contains("-spice"));
+    EXPECT_TRUE(args.contains("-vnc"));
     EXPECT_TRUE(args.contains("-qmp"));
 }
 

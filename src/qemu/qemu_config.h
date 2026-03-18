@@ -10,7 +10,7 @@ struct QemuConfig {
     uint32_t vcpus = 4;
     uint32_t ram_mb = 4096;
     QString machine = "virt,gic-version=3";
-    QString cpu = "cortex-a76";
+    QString cpu = "host";
 
     QString kernel_path;
     QString initrd_path;
@@ -23,6 +23,11 @@ struct QemuConfig {
     QString qemu_binary;
     QString spice_socket_path;
     QString qmp_socket_path;
+
+    // Display backend
+    enum class DisplayBackend { Auto, VNC, SPICE };
+    DisplayBackend display_backend = DisplayBackend::Auto;
+    uint16_t vnc_port = 5900;  // VNC display :0 = port 5900
 
     uint16_t adb_host_port = 5555;
     uint16_t adb_guest_port = 5555;
