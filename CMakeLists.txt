@@ -37,6 +37,13 @@ add_library(rex_qemu STATIC
 target_include_directories(rex_qemu PUBLIC src/qemu)
 target_link_libraries(rex_qemu PUBLIC Qt6::Core Qt6::Network)
 
+# --- VNC client ---
+add_library(rex_vnc STATIC
+    src/vnc/vnc_client.cpp
+)
+target_include_directories(rex_vnc PUBLIC src/vnc)
+target_link_libraries(rex_vnc PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
+
 # --- SPICE client ---
 add_library(rex_spice STATIC
     src/spice/spice_client.cpp
@@ -57,7 +64,7 @@ add_executable(rexplayer
     src/gui/frida_panel.cpp
 )
 target_link_libraries(rexplayer PRIVATE
-    rex_qemu rex_spice
+    rex_qemu rex_vnc rex_spice
     Qt6::Widgets Qt6::Gui Qt6::Core
 )
 target_include_directories(rexplayer PRIVATE src/gui)

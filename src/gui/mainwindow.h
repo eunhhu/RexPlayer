@@ -7,7 +7,7 @@
 #include <QAction>
 
 namespace rex::qemu { class QemuProcess; }
-namespace rex::spice { class SpiceClient; }
+namespace rex::vnc { class VncClient; }
 
 namespace rex::gui {
 
@@ -21,7 +21,7 @@ public:
     ~MainWindow() override;
 
     void setQemuProcess(rex::qemu::QemuProcess* qemu);
-    void setSpiceClient(rex::spice::SpiceClient* spice);
+    void setVncClient(rex::vnc::VncClient* vnc);
 
 private slots:
     void onVmStateChanged();
@@ -47,7 +47,7 @@ private:
     void createStatusBar_();
 
     rex::qemu::QemuProcess* qemu_ = nullptr;
-    rex::spice::SpiceClient* spice_ = nullptr;
+    rex::vnc::VncClient* vnc_ = nullptr;
     DisplayWidget* display_ = nullptr;
 
     QToolBar* sidebar_ = nullptr;

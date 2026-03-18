@@ -1,10 +1,9 @@
 #include "display_widget.h"
-#include "../spice/spice_display.h"
-#include "../spice/spice_input.h"
-#include "../spice/spice_client.h"
+#include "../vnc/vnc_client.h"
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <algorithm>
 
 namespace rex::gui {
 
@@ -15,17 +14,17 @@ DisplayWidget::DisplayWidget(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_OpaquePaintEvent);
 }
 
-void DisplayWidget::setSpiceDisplay(rex::spice::SpiceDisplay* display) {
-    spice_display_ = display;
-    if (display) {
-        connect(display, &rex::spice::SpiceDisplay::frameReady,
+void DisplayWidget::setVncClient(rex::vnc::VncClient* vnc) {
+    vnc_ = vnc;
+    if (vnc) {
+        connect(vnc, &rex::vnc::VncClient::frameReady,
                 this, &DisplayWidget::onFrameReady);
     }
 }
 
 void DisplayWidget::onFrameReady() {
-    if (spice_display_) {
-        current_frame_ = spice_display_->currentFrame();
+    if (vnc_) {
+        current_frame_ = vnc_->currentFrame();
         update();
     }
 }
@@ -45,6 +44,18 @@ QRect DisplayWidget::computeViewport() const {
     return {vx, vy, vw, vh};
 }
 
+QPoint DisplayWidget::mapToGuest(const QPoint& widgetPos) const {
+    QRect vp = computeViewport();
+    if (vp.width() <= 0 || vp.height() <= 0 || current_frame_.isNull())
+        return {0, 0};
+
+    int gx = (widgetPos.x() - vp.x()) * current_frame_.width() / vp.width();
+    int gy = (widgetPos.y() - vp.y()) * current_frame_.height() / vp.height();
+    gx = std::clamp(gx, 0, current_frame_.width() - 1);
+    gy = std::clamp(gy, 0, current_frame_.height() - 1);
+    return {gx, gy};
+}
+
 void DisplayWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
     painter.fillRect(rect(), Qt::black);
@@ -56,26 +67,74 @@ void DisplayWidget::paintEvent(QPaintEvent*) {
 }
 
 void DisplayWidget::keyPressEvent(QKeyEvent* event) {
-    if (event->isAutoRepeat()) return;
-    // Key input will be handled by InputHandler in future tasks
-    QWidget::keyPressEvent(event);
+    if (!vnc_ || event->isAutoRepeat()) return;
+    uint32_t keysym = event->key();
+    if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
+        keysym = (event->modifiers() & Qt::ShiftModifier)
+            ? keysym - Qt::Key_A + 0x41
+            : keysym - Qt::Key_A + 0x61;
+    } else if (keysym >= Qt::Key_0 && keysym <= Qt::Key_9) {
+        keysym = keysym - Qt::Key_0 + 0x30;
+    } else if (keysym == Qt::Key_Space) { keysym = 0x20;
+    } else if (keysym == Qt::Key_Return) { keysym = 0xFF0D;
+    } else if (keysym == Qt::Key_Escape) { keysym = 0xFF1B;
+    } else if (keysym == Qt::Key_Backspace) { keysym = 0xFF08;
+    } else if (keysym == Qt::Key_Tab) { keysym = 0xFF09;
+    } else if (keysym == Qt::Key_Up) { keysym = 0xFF52;
+    } else if (keysym == Qt::Key_Down) { keysym = 0xFF54;
+    } else if (keysym == Qt::Key_Left) { keysym = 0xFF51;
+    } else if (keysym == Qt::Key_Right) { keysym = 0xFF53;
+    }
+    vnc_->sendKeyEvent(true, keysym);
 }
 
 void DisplayWidget::keyReleaseEvent(QKeyEvent* event) {
-    if (event->isAutoRepeat()) return;
-    QWidget::keyReleaseEvent(event);
+    if (!vnc_ || event->isAutoRepeat()) return;
+    uint32_t keysym = event->key();
+    if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
+        keysym = (event->modifiers() & Qt::ShiftModifier)
+            ? keysym - Qt::Key_A + 0x41
+            : keysym - Qt::Key_A + 0x61;
+    } else if (keysym >= Qt::Key_0 && keysym <= Qt::Key_9) {
+        keysym = keysym - Qt::Key_0 + 0x30;
+    } else if (keysym == Qt::Key_Space) { keysym = 0x20;
+    } else if (keysym == Qt::Key_Return) { keysym = 0xFF0D;
+    } else if (keysym == Qt::Key_Escape) { keysym = 0xFF1B;
+    } else if (keysym == Qt::Key_Backspace) { keysym = 0xFF08;
+    } else if (keysym == Qt::Key_Tab) { keysym = 0xFF09;
+    } else if (keysym == Qt::Key_Up) { keysym = 0xFF52;
+    } else if (keysym == Qt::Key_Down) { keysym = 0xFF54;
+    } else if (keysym == Qt::Key_Left) { keysym = 0xFF51;
+    } else if (keysym == Qt::Key_Right) { keysym = 0xFF53;
+    }
+    vnc_->sendKeyEvent(false, keysym);
 }
 
 void DisplayWidget::mousePressEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
+    if (!vnc_) return;
+    QPoint guest = mapToGuest(event->pos());
+    uint8_t buttons = 0;
+    if (event->button() == Qt::LeftButton) buttons |= 1;
+    if (event->button() == Qt::MiddleButton) buttons |= 2;
+    if (event->button() == Qt::RightButton) buttons |= 4;
+    vnc_->sendPointerEvent(guest.x(), guest.y(), buttons);
 }
 
 void DisplayWidget::mouseMoveEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
+    if (!vnc_) return;
+    QPoint guest = mapToGuest(event->pos());
+    uint8_t buttons = 0;
+    if (event->buttons() & Qt::LeftButton) buttons |= 1;
+    if (event->buttons() & Qt::MiddleButton) buttons |= 2;
+    if (event->buttons() & Qt::RightButton) buttons |= 4;
+    vnc_->sendPointerEvent(guest.x(), guest.y(), buttons);
 }
 
 void DisplayWidget::mouseReleaseEvent(QMouseEvent* event) {
+    if (!vnc_) return;
+    QPoint guest = mapToGuest(event->pos());
     Q_UNUSED(event);
+    vnc_->sendPointerEvent(guest.x(), guest.y(), 0);
 }
 
 } // namespace rex::gui

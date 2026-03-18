@@ -1,16 +1,13 @@
 #include "mainwindow.h"
 #include "display_widget.h"
 #include "../qemu/qemu_process.h"
-#include "../spice/spice_client.h"
-#include "../spice/spice_display.h"
-#include "../spice/spice_input.h"
+#include "../vnc/vnc_client.h"
 
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QInputDialog>
-#include <cstdio>
 
 namespace rex::gui {
 
@@ -42,9 +39,9 @@ void MainWindow::setQemuProcess(rex::qemu::QemuProcess* qemu) {
     });
 }
 
-void MainWindow::setSpiceClient(rex::spice::SpiceClient* spice) {
-    spice_ = spice;
-    display_->setSpiceDisplay(spice->display());
+void MainWindow::setVncClient(rex::vnc::VncClient* vnc) {
+    vnc_ = vnc;
+    display_->setVncClient(vnc);
 }
 
 void MainWindow::createMenus() {
@@ -128,12 +125,12 @@ void MainWindow::createSidebar() {
 }
 
 void MainWindow::createStatusBar_() {
-    status_vm_    = new QLabel("Stopped");
-    status_spice_ = new QLabel("SPICE: ---");
-    status_fps_   = new QLabel("0 FPS");
-    status_cpu_   = new QLabel("");
-    status_ram_   = new QLabel("");
-    status_adb_   = new QLabel("ADB :5555");
+    status_vm_ = new QLabel("Stopped");
+    status_spice_ = new QLabel("VNC: ---");
+    status_fps_ = new QLabel("0 FPS");
+    status_cpu_ = new QLabel("");
+    status_ram_ = new QLabel("");
+    status_adb_ = new QLabel("ADB :5555");
 
     auto* sb = statusBar();
     sb->addWidget(status_vm_);
@@ -146,11 +143,11 @@ void MainWindow::onVmStateChanged() {
     if (!qemu_) return;
     using S = rex::qemu::QemuProcess::State;
     switch (qemu_->state()) {
-        case S::Stopped:  status_vm_->setText("Stopped");    break;
+        case S::Stopped:  status_vm_->setText("Stopped"); break;
         case S::Starting: status_vm_->setText("Starting..."); break;
-        case S::Running:  status_vm_->setText("Running");    break;
-        case S::Paused:   status_vm_->setText("Paused");     break;
-        case S::Error:    status_vm_->setText("Error");      break;
+        case S::Running:  status_vm_->setText("Running"); break;
+        case S::Paused:   status_vm_->setText("Paused"); break;
+        case S::Error:    status_vm_->setText("Error"); break;
     }
 }
 
@@ -170,38 +167,40 @@ void MainWindow::onReset() {
     if (qemu_) qemu_->reset();
 }
 
+// Key injection via VNC RFB key events
+// Using X11 keysyms (XK_*) which VNC/RFB uses
 void MainWindow::onVolumeUp() {
-    if (spice_ && spice_->input()) {
-        spice_->input()->sendKeyPress(115);
-        spice_->input()->sendKeyRelease(115);
+    if (vnc_) {
+        vnc_->sendKeyEvent(true, 0x1008FF13);  // XF86AudioRaiseVolume
+        vnc_->sendKeyEvent(false, 0x1008FF13);
     }
 }
 
 void MainWindow::onVolumeDown() {
-    if (spice_ && spice_->input()) {
-        spice_->input()->sendKeyPress(114);
-        spice_->input()->sendKeyRelease(114);
+    if (vnc_) {
+        vnc_->sendKeyEvent(true, 0x1008FF11);  // XF86AudioLowerVolume
+        vnc_->sendKeyEvent(false, 0x1008FF11);
     }
 }
 
 void MainWindow::onHome() {
-    if (spice_ && spice_->input()) {
-        spice_->input()->sendKeyPress(102);
-        spice_->input()->sendKeyRelease(102);
+    if (vnc_) {
+        vnc_->sendKeyEvent(true, 0xFF50);  // XK_Home
+        vnc_->sendKeyEvent(false, 0xFF50);
     }
 }
 
 void MainWindow::onBack() {
-    if (spice_ && spice_->input()) {
-        spice_->input()->sendKeyPress(158);
-        spice_->input()->sendKeyRelease(158);
+    if (vnc_) {
+        vnc_->sendKeyEvent(true, 0xFF1B);  // XK_Escape (used as Android Back)
+        vnc_->sendKeyEvent(false, 0xFF1B);
     }
 }
 
 void MainWindow::onRecents() {
-    if (spice_ && spice_->input()) {
-        spice_->input()->sendKeyPress(580);
-        spice_->input()->sendKeyRelease(580);
+    if (vnc_) {
+        vnc_->sendKeyEvent(true, 0xFF67);  // XK_Menu
+        vnc_->sendKeyEvent(false, 0xFF67);
     }
 }
 
@@ -210,8 +209,8 @@ void MainWindow::onRotate() {
 }
 
 void MainWindow::onScreenshot() {
-    if (!spice_ || !spice_->display()) return;
-    QImage frame = spice_->display()->currentFrame();
+    if (!vnc_) return;
+    QImage frame = vnc_->currentFrame();
     if (frame.isNull()) {
         statusBar()->showMessage("No display frame available", 2000);
         return;
@@ -241,9 +240,9 @@ void MainWindow::onSettings() {
 }
 
 void MainWindow::updateStatusBar() {
-    if (spice_ && spice_->display()) {
-        status_fps_->setText(QString("%1 FPS").arg(spice_->display()->fps(), 0, 'f', 0));
-        status_spice_->setText(spice_->isConnected() ? "SPICE OK" : "SPICE ---");
+    if (vnc_) {
+        status_fps_->setText(QString("%1 FPS").arg(vnc_->fps(), 0, 'f', 0));
+        status_spice_->setText(vnc_->isConnected() ? "VNC OK" : "VNC ---");
     }
 }
 

@@ -44,7 +44,14 @@ QStringList QemuConfig::toCommandLine() const {
 
     args << "-display" << "none";
 
-    if (!spice_socket_path.isEmpty()) {
+    // Display backend: VNC (universally supported) or SPICE (optional)
+    DisplayBackend db = display_backend;
+    if (db == DisplayBackend::Auto) {
+        // Auto-detect: try SPICE socket path presence as hint, otherwise VNC
+        db = DisplayBackend::VNC;
+    }
+
+    if (db == DisplayBackend::SPICE && !spice_socket_path.isEmpty()) {
 #ifdef Q_OS_WIN
         args << "-spice"
              << QString("port=%1,disable-ticketing=on").arg(5930);
@@ -53,6 +60,9 @@ QStringList QemuConfig::toCommandLine() const {
              << QString("unix=on,addr=%1,disable-ticketing=on")
                     .arg(spice_socket_path);
 #endif
+    } else {
+        // VNC on localhost
+        args << "-vnc" << QString("127.0.0.1:%1").arg(vnc_port - 5900);
     }
 
     if (!qmp_socket_path.isEmpty()) {

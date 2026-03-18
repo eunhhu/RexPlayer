@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <QImage>
 
-namespace rex::spice { class SpiceDisplay; }
+namespace rex::vnc { class VncClient; }
 
 namespace rex::gui {
 
@@ -13,7 +13,7 @@ class DisplayWidget : public QWidget {
 public:
     explicit DisplayWidget(QWidget* parent = nullptr);
 
-    void setSpiceDisplay(rex::spice::SpiceDisplay* display);
+    void setVncClient(rex::vnc::VncClient* vnc);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -26,8 +26,9 @@ protected:
 private:
     void onFrameReady();
     QRect computeViewport() const;
+    QPoint mapToGuest(const QPoint& widgetPos) const;
 
-    rex::spice::SpiceDisplay* spice_display_ = nullptr;
+    rex::vnc::VncClient* vnc_ = nullptr;
     QImage current_frame_;
 };
 

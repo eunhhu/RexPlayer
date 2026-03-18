@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "../qemu/qemu_process.h"
 #include "../qemu/qemu_config.h"
-#include "../spice/spice_client.h"
+#include "../vnc/vnc_client.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -56,27 +56,24 @@ int main(int argc, char* argv[]) {
     qemu_config.generateSocketPaths("");
 
     auto* qemu = new rex::qemu::QemuProcess();
-    auto* spice = new rex::spice::SpiceClient();
+    auto* vnc = new rex::vnc::VncClient();
 
-    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [spice, &qemu_config]() {
-        fprintf(stderr, "main: QMP ready, connecting SPICE...\n");
-#ifdef Q_OS_WIN
-        spice->connectToHost("127.0.0.1", 5930);
-#else
-        spice->connectToSocket(qemu_config.spice_socket_path);
-#endif
+    // Connect VNC after QEMU QMP is ready
+    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [vnc, &qemu_config]() {
+        fprintf(stderr, "main: QMP ready, connecting VNC on port %d...\n", qemu_config.vnc_port);
+        vnc->connectToHost("127.0.0.1", qemu_config.vnc_port);
     });
 
     rex::gui::MainWindow window;
     window.setQemuProcess(qemu);
-    window.setSpiceClient(spice);
+    window.setVncClient(vnc);
     window.show();
 
     if (!qemu_config.kernel_path.isEmpty() || !qemu_config.system_image_path.isEmpty())
         qemu->start(qemu_config);
 
     int ret = app.exec();
-    delete spice;
+    delete vnc;
     delete qemu;
     return ret;
 }
