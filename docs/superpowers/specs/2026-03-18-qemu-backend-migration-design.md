@@ -240,7 +240,6 @@ All of these directories are removed entirely:
 ### Retained
 - Qt 6 (Widgets, Gui, Core)
 - Rust toolchain (for middleware crates)
-- cxx (Rust FFI bridge)
 
 ### Removed
 - Hypervisor.framework (macOS)
