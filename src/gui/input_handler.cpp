@@ -1,12 +1,12 @@
 #include "input_handler.h"
-#include "../spice/spice_input.h"
+#include "../vnc/vnc_client.h"
 
 namespace rex::gui {
 
 InputHandler::InputHandler(QObject* parent) : QObject(parent) {}
 
-void InputHandler::setSpiceInput(rex::spice::SpiceInput* input) {
-    spice_input_ = input;
+void InputHandler::setVncClient(rex::vnc::VncClient* vnc) {
+    vnc_ = vnc;
 }
 
 bool InputHandler::eventFilter(QObject* obj, QEvent* event) {
@@ -32,33 +32,56 @@ bool InputHandler::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void InputHandler::handleKeyPress(QKeyEvent* event) {
-    if (!spice_input_ || event->isAutoRepeat()) return;
-    int sc = rex::spice::SpiceInput::qtKeyToScancode(event->key());
-    if (sc > 0) spice_input_->sendKeyPress(sc);
+    if (!vnc_ || event->isAutoRepeat()) return;
+    uint32_t keysym = event->key();
+    if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
+        keysym = (event->modifiers() & Qt::ShiftModifier)
+            ? keysym - Qt::Key_A + 0x41
+            : keysym - Qt::Key_A + 0x61;
+    } else if (keysym >= Qt::Key_0 && keysym <= Qt::Key_9) {
+        keysym = keysym - Qt::Key_0 + 0x30;
+    } else if (keysym == Qt::Key_Space) { keysym = 0x20;
+    } else if (keysym == Qt::Key_Return) { keysym = 0xFF0D;
+    } else if (keysym == Qt::Key_Escape) { keysym = 0xFF1B;
+    }
+    vnc_->sendKeyEvent(true, keysym);
 }
 
 void InputHandler::handleKeyRelease(QKeyEvent* event) {
-    if (!spice_input_ || event->isAutoRepeat()) return;
-    int sc = rex::spice::SpiceInput::qtKeyToScancode(event->key());
-    if (sc > 0) spice_input_->sendKeyRelease(sc);
+    if (!vnc_ || event->isAutoRepeat()) return;
+    uint32_t keysym = event->key();
+    if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
+        keysym = (event->modifiers() & Qt::ShiftModifier)
+            ? keysym - Qt::Key_A + 0x41
+            : keysym - Qt::Key_A + 0x61;
+    } else if (keysym >= Qt::Key_0 && keysym <= Qt::Key_9) {
+        keysym = keysym - Qt::Key_0 + 0x30;
+    } else if (keysym == Qt::Key_Space) { keysym = 0x20;
+    } else if (keysym == Qt::Key_Return) { keysym = 0xFF0D;
+    } else if (keysym == Qt::Key_Escape) { keysym = 0xFF1B;
+    }
+    vnc_->sendKeyEvent(false, keysym);
 }
 
 void InputHandler::handleMousePress(QMouseEvent* event) {
-    if (!spice_input_) return;
-    auto pos = event->pos();
-    spice_input_->sendMouseMove(pos.x(), pos.y());
-    spice_input_->sendMousePress(1);
+    if (!vnc_) return;
+    uint8_t buttons = 0;
+    if (event->button() == Qt::LeftButton) buttons |= 1;
+    if (event->button() == Qt::MiddleButton) buttons |= 2;
+    if (event->button() == Qt::RightButton) buttons |= 4;
+    vnc_->sendPointerEvent(event->pos().x(), event->pos().y(), buttons);
 }
 
 void InputHandler::handleMouseMove(QMouseEvent* event) {
-    if (!spice_input_) return;
-    auto pos = event->pos();
-    spice_input_->sendMouseMove(pos.x(), pos.y());
+    if (!vnc_) return;
+    uint8_t buttons = 0;
+    if (event->buttons() & Qt::LeftButton) buttons |= 1;
+    vnc_->sendPointerEvent(event->pos().x(), event->pos().y(), buttons);
 }
 
-void InputHandler::handleMouseRelease(QMouseEvent*) {
-    if (!spice_input_) return;
-    spice_input_->sendMouseRelease(1);
+void InputHandler::handleMouseRelease(QMouseEvent* event) {
+    if (!vnc_) return;
+    vnc_->sendPointerEvent(event->pos().x(), event->pos().y(), 0);
 }
 
 } // namespace rex::gui

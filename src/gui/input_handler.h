@@ -4,11 +4,9 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 
-namespace rex::spice { class SpiceInput; }
+namespace rex::vnc { class VncClient; }
 
 namespace rex::gui {
-
-class DisplayWidget;
 
 class InputHandler : public QObject {
     Q_OBJECT
@@ -16,7 +14,7 @@ class InputHandler : public QObject {
 public:
     explicit InputHandler(QObject* parent = nullptr);
 
-    void setSpiceInput(rex::spice::SpiceInput* input);
+    void setVncClient(rex::vnc::VncClient* vnc);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
@@ -28,7 +26,7 @@ private:
     void handleMouseMove(QMouseEvent* event);
     void handleMouseRelease(QMouseEvent* event);
 
-    rex::spice::SpiceInput* spice_input_ = nullptr;
+    rex::vnc::VncClient* vnc_ = nullptr;
 };
 
 } // namespace rex::gui
