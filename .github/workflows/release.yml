@@ -5,70 +5,119 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build \
+            qt6-base-dev libqt6widgets6 \
+            libspice-client-glib-2.0-dev \
+            libglib2.0-dev \
+            pkg-config
+
       - name: Build C++
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DREX_ENABLE_TESTS=ON
+          cmake --build build
+
       - name: Test C++
         run: ctest --test-dir build --output-on-failure
-      - name: Build + test Rust
-        run: cargo build --release --workspace && cargo test --workspace --release
+
+      - name: Build and test Rust
         working-directory: middleware
-      - name: Package
+        run: |
+          cargo build --release --workspace
+          cargo test --workspace --release
+
+      - name: Package tar.gz
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p staging
-          cp build/rexplayer staging/ 2>/dev/null || true
-          cp build/librex_*.a staging/ 2>/dev/null || true
-          ls -la staging/
-          tar czf "rexplayer-${TAG}-linux-x86_64.tar.gz" -C staging .
-          ls -la *.tar.gz
+          mkdir -p staging/rexplayer
+          cp build/rexplayer staging/rexplayer/
+          cp packaging/linux/rexplayer.desktop staging/rexplayer/
+          cp README.md staging/rexplayer/ 2>/dev/null || true
+          tar czf "rexplayer-${TAG}-linux-x86_64.tar.gz" -C staging rexplayer
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
           path: "*.tar.gz"
-          if-no-files-found: warn
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Qt
-        run: brew install qt@6
+
+      - name: Install dependencies
+        run: brew install qt@6 qemu spice-gtk glib pkg-config create-dmg
+
       - name: Build C++
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6) && cmake --build build
-      - name: Build + test Rust
-        run: cargo build --release --workspace && cargo test --workspace --release
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)" \
+            -DREX_ENABLE_TESTS=ON
+          cmake --build build
+
+      - name: Test C++
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Build and test Rust
         working-directory: middleware
-      - name: Package
+        run: |
+          cargo build --release --workspace
+          cargo test --workspace --release
+
+      - name: Deploy Qt frameworks
+        run: |
+          if [ -d build/rexplayer.app ]; then
+            "$(brew --prefix qt@6)/bin/macdeployqt" build/rexplayer.app -verbose=1
+          fi
+
+      - name: Create DMG
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p staging
           if [ -d build/rexplayer.app ]; then
-            cp -R build/rexplayer.app staging/
-          elif [ -f build/rexplayer ]; then
-            cp build/rexplayer staging/
+            create-dmg \
+              --volname "RexPlayer" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --icon "rexplayer.app" 150 190 \
+              --app-drop-link 450 190 \
+              "rexplayer-${TAG}-macos-arm64.dmg" \
+              build/rexplayer.app || true
           fi
-          cp build/librex_*.a staging/ 2>/dev/null || true
-          ls -la staging/
-          tar czf "rexplayer-${TAG}-macos.tar.gz" -C staging .
-          ls -la *.tar.gz
+          if [ ! -f "rexplayer-${TAG}-macos-arm64.dmg" ]; then
+            mkdir -p staging
+            cp -R build/rexplayer.app staging/ 2>/dev/null || cp build/rexplayer staging/
+            tar czf "rexplayer-${TAG}-macos-arm64.tar.gz" -C staging .
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
-          path: "*.tar.gz"
+          name: macos-arm64
+          path: |
+            *.dmg
+            *.tar.gz
           if-no-files-found: warn
 
   build-windows:
@@ -76,32 +125,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.0'
+
       - name: Build C++
+        shell: bash
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DREX_ENABLE_WHPX=OFF
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DREX_ENABLE_TESTS=ON
           cmake --build build --config Release
-      - name: Check Rust (cross-platform crates)
+
+      - name: Build Rust
         shell: bash
         working-directory: middleware
-        run: |
-          echo "Building cross-platform Rust crates (excluding Unix-only rex-devices and rex-ffi)..."
-          cargo check -p rex-config -p rex-network -p rex-filesync -p rex-frida -p rex-update
+        run: cargo build --release -p rex-config -p rex-frida -p rex-update
+
       - name: Deploy Qt DLLs
         shell: bash
         run: |
           if [ -f "build/Release/rexplayer.exe" ]; then
-            echo "Found rexplayer.exe, running windeployqt..."
             windeployqt build/Release/rexplayer.exe --release --no-translations --no-opengl-sw 2>/dev/null || true
-          else
-            echo "::warning::rexplayer.exe not found in build/Release/"
-            echo "Listing build output:"
-            find build -name "*.exe" -o -name "*.lib" -o -name "*.dll" 2>/dev/null || true
           fi
-      - name: Package
+
+      - name: Package zip
         env:
           TAG: ${{ github.ref_name }}
         shell: bash
@@ -109,13 +159,15 @@ jobs:
           mkdir -p staging
           cp build/Release/rexplayer.exe staging/ 2>/dev/null || true
           cp build/Release/*.dll staging/ 2>/dev/null || true
-          cp build/Release/librex_*.lib staging/ 2>/dev/null || true
-          cp build/librex_*.lib staging/ 2>/dev/null || true
-          cp build/*/librex_*.lib staging/ 2>/dev/null || true
-          echo "Staging contents:"
-          ls -la staging/
+          if [ -d "build/Release/platforms" ]; then
+            cp -r build/Release/platforms staging/
+          fi
+          if [ -d "build/Release/styles" ]; then
+            cp -r build/Release/styles staging/
+          fi
+          cp README.md staging/ 2>/dev/null || true
           cd staging && 7z a "../rexplayer-${TAG}-windows-x86_64.zip" .
-          cd .. && ls -la *.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
@@ -124,31 +176,28 @@ jobs:
 
   release:
     needs: [build-linux, build-macos, build-windows]
-    if: >-
-      always() && !cancelled() &&
-      (needs.build-linux.result == 'success' ||
-       needs.build-macos.result == 'success' ||
-       needs.build-windows.result == 'success')
+    if: always() && !cancelled() && contains(needs.*.result, 'success')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
       - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Verify artifacts exist
         run: |
-          echo "Downloaded artifacts:"
-          find artifacts -type f
-      - name: Verify at least one artifact exists
-        run: |
-          count=$(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+          count=$(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.dmg" \) | wc -l)
           echo "Found ${count} release artifact(s)"
           if [ "$count" -eq 0 ]; then
             echo "::error::No release artifacts found"
             exit 1
           fi
-      - uses: softprops/action-gh-release@v2
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
+          draft: false
