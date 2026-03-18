@@ -54,6 +54,7 @@ add_executable(rexplayer
     src/gui/input_handler.cpp
     src/gui/settings_dialog.cpp
     src/gui/keymap_editor.cpp
+    src/gui/frida_panel.cpp
 )
 target_link_libraries(rexplayer PRIVATE
     rex_qemu rex_spice
