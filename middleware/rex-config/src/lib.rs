@@ -8,6 +8,8 @@ pub struct RexConfig {
     pub vm: VmConfig,
     pub display: DisplayConfig,
     pub frida: FridaConfig,
+    #[serde(default)]
+    pub qemu: QemuConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,6 +46,45 @@ pub struct FridaConfig {
     pub port: u16,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QemuConfig {
+    /// Path to QEMU binary (empty = auto-detect)
+    #[serde(default)]
+    pub binary_path: String,
+
+    /// QEMU machine type
+    #[serde(default = "default_machine")]
+    pub machine: String,
+
+    /// CPU model
+    #[serde(default = "default_cpu")]
+    pub cpu: String,
+
+    /// Accelerator: "auto", "hvf", "kvm", "whpx", "tcg"
+    #[serde(default = "default_accelerator")]
+    pub accelerator: String,
+
+    /// Additional QEMU CLI arguments
+    #[serde(default)]
+    pub extra_args: Vec<String>,
+}
+
+fn default_machine() -> String { "virt,gic-version=3".to_string() }
+fn default_cpu() -> String { "cortex-a76".to_string() }
+fn default_accelerator() -> String { "auto".to_string() }
+
+impl Default for QemuConfig {
+    fn default() -> Self {
+        Self {
+            binary_path: String::new(),
+            machine: default_machine(),
+            cpu: default_cpu(),
+            accelerator: default_accelerator(),
+            extra_args: Vec::new(),
+        }
+    }
+}
+
 fn default_vcpus() -> u32 { 2 }
 fn default_ram() -> u64 { 2048 }
 fn default_width() -> u32 { 1080 }
@@ -74,6 +115,7 @@ impl Default for RexConfig {
                 auto_update: true,
                 port: default_frida_port(),
             },
+            qemu: QemuConfig::default(),
         }
     }
 }
@@ -189,5 +231,66 @@ port = 12345
         assert_eq!(loaded.vm.ram_mb, config.vm.ram_mb);
 
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn test_qemu_config_defaults() {
+        let config = QemuConfig::default();
+        assert_eq!(config.machine, "virt,gic-version=3");
+        assert_eq!(config.cpu, "cortex-a76");
+        assert_eq!(config.accelerator, "auto");
+        assert!(config.binary_path.is_empty());
+        assert!(config.extra_args.is_empty());
+    }
+
+    #[test]
+    fn test_qemu_config_serialization() {
+        let toml_str = r#"
+[vm]
+vcpus = 4
+ram_mb = 4096
+system_image = "system.img"
+
+[display]
+width = 1080
+height = 1920
+dpi = 320
+
+[frida]
+enabled = true
+
+[qemu]
+binary_path = "/opt/homebrew/bin/qemu-system-aarch64"
+machine = "virt,gic-version=3"
+cpu = "max"
+accelerator = "hvf"
+extra_args = ["-monitor", "stdio"]
+"#;
+        let config: RexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.qemu.binary_path, "/opt/homebrew/bin/qemu-system-aarch64");
+        assert_eq!(config.qemu.cpu, "max");
+        assert_eq!(config.qemu.accelerator, "hvf");
+        assert_eq!(config.qemu.extra_args, vec!["-monitor", "stdio"]);
+    }
+
+    #[test]
+    fn test_qemu_config_missing_uses_defaults() {
+        let toml_str = r#"
+[vm]
+vcpus = 2
+system_image = "system.img"
+
+[display]
+width = 1080
+height = 1920
+dpi = 320
+
+[frida]
+enabled = true
+"#;
+        let config: RexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.qemu.machine, "virt,gic-version=3");
+        assert_eq!(config.qemu.accelerator, "auto");
+        assert!(config.qemu.binary_path.is_empty());
     }
 }
