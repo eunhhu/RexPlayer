@@ -1,27 +1,18 @@
 #pragma once
 
-#include "display_widget.h"
-#include "settings_dialog.h"
-#include "../gpu/display.h"
-#include "../vmm/include/rex/vmm/vm.h"
-#include "../vmm/include/rex/vmm/snapshot.h"
-
-#include <QLabel>
-#include <QElapsedTimer>
 #include <QMainWindow>
+#include <QToolBar>
+#include <QLabel>
 #include <QTimer>
+#include <QAction>
 
-#include <memory>
+namespace rex::qemu { class QemuProcess; }
+namespace rex::spice { class SpiceClient; }
 
 namespace rex::gui {
 
-/// MainWindow is the top-level window for the RexPlayer application.
-///
-/// It provides:
-///  - Menu bar: File, VM, Tools, Help
-///  - Toolbar: Power, Rotate, Volume, Screenshot, Nav buttons
-///  - Central DisplayWidget for rendering the guest framebuffer
-///  - Status bar showing VM state, FPS, and memory usage
+class DisplayWidget;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -29,78 +20,46 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
-    /// Provide VM and Display objects from outside (set by main.cpp)
-    void setVm(rex::vmm::Vm* vm);
-    void setDisplay(rex::gpu::Display* display);
-
-    /// Apply CLI-provided config overrides
-    void applyConfig(const RexConfig& config);
-
-public slots:
-    // --- VM operations ---
-    void startVm();
-    void stopVm();
-    void pauseVm();
-    void resetVm();
-
-    // --- File / Tools operations ---
-    void installApk();
-    void takeScreenshot();
-    void startScreenRecord();
-    void openFridaConsole();
-
-    // --- Settings ---
-    void openSettings();
-
-    // --- Display ---
-    void rotateDisplay();
-
-    // --- Android nav ---
-    void sendHome();
-    void sendBack();
-    void sendRecent();
-    void sendPower();
-    void sendVolumeUp();
-    void sendVolumeDown();
+    void setQemuProcess(rex::qemu::QemuProcess* qemu);
+    void setSpiceClient(rex::spice::SpiceClient* spice);
 
 private slots:
+    void onVmStateChanged();
+    void onPower();
+    void onPause();
+    void onReset();
+    void onVolumeUp();
+    void onVolumeDown();
+    void onHome();
+    void onBack();
+    void onRecents();
+    void onRotate();
+    void onScreenshot();
+    void onGps();
+    void onKeymapToggle();
+    void onFridaToggle();
+    void onSettings();
     void updateStatusBar();
-    void onConfigApplied(const RexConfig& config);
-    void onGuestTouchInput(const TouchContact& contact);
-    void onGuestKeyInput(uint16_t linux_keycode, bool pressed);
-    void showAbout();
 
 private:
-    void setupMenuBar();
-    void setupToolBar();
-    void setupStatusBar();
-    void updateVmStateLabel();
-    void showUnavailableFeature(const QString& feature);
-    void notifyGuestInputUnavailable();
+    void createMenus();
+    void createSidebar();
+    void createStatusBar_();
 
-    // Central widget
-    DisplayWidget* display_widget_ = nullptr;
+    rex::qemu::QemuProcess* qemu_ = nullptr;
+    rex::spice::SpiceClient* spice_ = nullptr;
+    DisplayWidget* display_ = nullptr;
 
-    // External references (not owned)
-    rex::vmm::Vm* vm_ = nullptr;
-    rex::gpu::Display* display_ = nullptr;
+    QToolBar* sidebar_ = nullptr;
+    QAction* power_action_ = nullptr;
 
-    // Status bar labels
-    QLabel* state_label_ = nullptr;
-    QLabel* fps_label_ = nullptr;
-    QLabel* memory_label_ = nullptr;
-
-    // Status bar timer
+    QLabel* status_vm_ = nullptr;
+    QLabel* status_spice_ = nullptr;
+    QLabel* status_fps_ = nullptr;
+    QLabel* status_cpu_ = nullptr;
+    QLabel* status_ram_ = nullptr;
+    QLabel* status_adb_ = nullptr;
     QTimer* status_timer_ = nullptr;
-
-    // Current config
-    RexConfig config_;
-
-    // Rotation state (0, 90, 180, 270)
-    int rotation_ = 0;
-
-    // Rate-limit repeated notices from raw input events.
-    QElapsedTimer guest_input_notice_timer_;
 };
 
 } // namespace rex::gui
