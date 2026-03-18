@@ -37,6 +37,16 @@ add_library(rex_qemu STATIC
 target_include_directories(rex_qemu PUBLIC src/qemu)
 target_link_libraries(rex_qemu PUBLIC Qt6::Core Qt6::Network)
 
+# --- SPICE client ---
+add_library(rex_spice STATIC
+    src/spice/spice_client.cpp
+    src/spice/spice_display.cpp
+    src/spice/spice_input.cpp
+)
+target_include_directories(rex_spice PUBLIC src/spice)
+target_include_directories(rex_spice PRIVATE ${SPICE_CLIENT_INCLUDE_DIRS} ${GLIB_INCLUDE_DIRS})
+target_link_libraries(rex_spice PUBLIC Qt6::Core Qt6::Gui ${SPICE_CLIENT_LIBRARIES} ${GLIB_LIBRARIES})
+
 # --- Tests ---
 if(REX_ENABLE_TESTS)
     enable_testing()
