@@ -1,266 +1,243 @@
 # RexPlayer Architecture
 
-This document describes the internal architecture of RexPlayer, a lightweight Android app player that uses native hypervisor APIs instead of QEMU.
+RexPlayer is a native Android player that manages a QEMU subprocess for VM execution, connects to it via the SPICE protocol for display and input, and controls it via QMP (QEMU Machine Protocol). A Qt 6 GUI provides the user interface including a game keymap editor, Frida script editor, and modern settings dialog.
 
-## Current Status
-
-- The default native binary is a C++ prototype runtime. It boots x86 kernels directly and uses the software display path.
-- The Rust middleware crates are developed and tested as a separate workspace; they are not linked into the default CMake binary today.
-- Virgl/Venus sources exist, but the shipped runtime still falls back to software rendering.
-- Intel macOS is the only HVF path wired into the shared HAL; Apple Silicon / ARM64 guest support is still incomplete.
-
-## Design Philosophy
-
-1. **No QEMU** — Use OS-native hypervisor APIs directly (KVM, HVF, WHPX)
-2. **Minimal device set** — ~12 purpose-built virtio devices, no legacy ISA/PCI baggage
-3. **Split-language architecture** — C++ for VMM core (low-level, latency-sensitive), Rust for device backends (safety, concurrency)
-4. **Lock-free hot paths** — No global locks on vCPU execution or virtqueue processing
-5. **Platform-native I/O** — io_uring (Linux), dispatch_io (macOS), IOCP (Windows)
-
-## Layer Diagram
+## Component Overview
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                      Layer 5: Qt 6 GUI                       │
-│                                                              │
-│  MainWindow          DisplayWidget        SettingsDialog     │
-│  - Menu/Toolbar      - Framebuffer        - VM config        │
-│  - VM controls         rendering          - Display          │
-│  - Status bar        - Touch/keyboard     - Network          │
-│                        mapping            - Frida             │
-│                      InputHandler                            │
-│                      - Qt key → Linux     - Multi-touch      │
-│                        keycode mapping    - WASD gaming       │
-├──────────── experimental cxx FFI / workspace crates ─────────┤
-│         Layer 4: Rust Middleware (not linked by default)     │
-│                                                              │
-│  rex-devices (virtio backends)    rex-network                │
-│  ├── virtio-blk                   ├── DHCP server            │
-│  ├── virtio-net                   ├── DNS relay              │
-│  ├── virtio-gpu                   └── UserNet NAT            │
-│  ├── virtio-input                                            │
-│  ├── virtio-vsock                 rex-frida                  │
-│  ├── virtio-snd                   └── Server lifecycle       │
-│  ├── virtio-balloon                                          │
-│  ├── virtio-console               rex-config (TOML)          │
-│  ├── virtio-mmio (transport)       rex-filesync              │
-│  └── virtqueue (helpers)           rex-update                │
-├──────────────────────────────────────────────────────────────┤
-│                    Layer 3: C++ VMM Core                     │
-│                                                              │
-│  Vm                  MemoryManager        DeviceManager      │
-│  - vCPU thread       - mmap/VirtualAlloc  - I/O port         │
-│    management        - GPA ↔ HVA           dispatch          │
-│  - State machine     - Huge pages         - MMIO dispatch    │
-│  - Start/pause/stop                                          │
-│                      BootLoader            SnapshotManager   │
-│                      - x86 bzImage         - RLE compress    │
-│                      - ARM64 Image         - Atomic save     │
-│                      - Direct kernel boot  - Register serial │
-│                                                              │
-│  CpuOptimizer        IoOptimizer          InstanceManager    │
-│  - Topology detect   - Batch virtqueue    - Multi-VM         │
-│  - vCPU pinning      - Interrupt coalesce - CoW clone        │
-│  - TSC scaling       - Adaptive sizing    - State persist    │
-│                                                              │
-│  Legacy Devices                                              │
-│  ├── UART 16550 (serial console)                             │
-│  ├── i8042 (PS/2 keyboard stub)                              │
-│  ├── RTC (MC146818 real-time clock)                          │
-│  └── PCI Host Bridge (config space access)                   │
-├──────────────────────────────────────────────────────────────┤
-│                 Layer 2: HAL (Hypervisor Abstraction)         │
-│                                                              │
-│  IHypervisor interface                                       │
-│  ├── KvmHypervisor      (Linux /dev/kvm ioctl)              │
-│  ├── HvfHypervisor       (macOS Hypervisor.framework x86)    │
-│  ├── HvfArm64Hypervisor  (planned / incomplete)              │
-│  └── WhpxHypervisor     (Windows WHvCreatePartition)         │
-│                                                              │
-│  IVcpu interface         IMemoryManager interface            │
-│  - run()                 - map_region()                      │
-│  - get/set_regs()        - unmap_region()                    │
-│  - get/set_sregs()       - gpa_to_hva()                     │
-│  - inject_interrupt()                                        │
-│  - get/set_msr()                                             │
-├──────────────────────────────────────────────────────────────┤
-│                   Layer 1: GPU Pipeline                      │
-│                                                              │
-│  IRenderer interface                                         │
-│  ├── SoftwareRenderer   (CPU fallback, 2D resource mgmt)    │
-│  ├── VirglRenderer      (experimental)                       │
-│  └── VenusRenderer      (experimental)                       │
-│                                                              │
-│  GpuBridge              ShaderCache       Display            │
-│  - Rust GPU → C++       - FNV-1a hash     - Double buffer   │
-│  - Resource lifecycle   - Disk cache      - Present callback │
-│  - Scanout management   - Load/store      - Resize           │
-├──────────────────────────────────────────────────────────────┤
-│                  Platform Abstraction                         │
-│                                                              │
-│  Async I/O                    Threading                      │
-│  ├── io_uring (Linux)         - Thread pinning               │
-│  ├── dispatch_io (macOS)      - Thread naming                │
-│  └── IOCP (Windows)           - Priority management          │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                        Qt 6 GUI Layer                          │
+│                                                                │
+│  MainWindow            DisplayWidget       SettingsDialog      │
+│  - Sidebar action      - SPICE surface     - VM config         │
+│    buttons             - Touch/keyboard    - Display           │
+│  - VM lifecycle          input forwarding  - Network           │
+│    controls                                - Frida             │
+│                        KeymapEditor                            │
+│  FridaPanel            - Visual key        InputHandler        │
+│  - Script editor         rebinding         - Qt event →        │
+│  - Console output      - Game profiles       SPICE input       │
+├────────────────────────────────────────────────────────────────┤
+│                     SPICE Client Layer                         │
+│                                                                │
+│  SpiceClient           SpiceDisplay        SpiceInput          │
+│  - Session setup       - Display channel   - Input channel     │
+│  - Channel mgmt        - Frame rendering   - Key/mouse/touch   │
+│  - Reconnect logic     - Resize handling     injection         │
+├────────────────────────────────────────────────────────────────┤
+│                      QMP Client Layer                          │
+│                                                                │
+│  QmpClient                                                     │
+│  - Unix/TCP socket connection to QEMU                          │
+│  - JSON command/response framing                               │
+│  - Commands: query-status, stop, cont, system_reset,           │
+│              savevm, loadvm, quit                              │
+├────────────────────────────────────────────────────────────────┤
+│                  QEMU Process Manager                          │
+│                                                                │
+│  QemuProcess           QemuConfig                             │
+│  - QProcess lifecycle  - CLI argument assembly                 │
+│  - stdout/stderr log   - Machine type, CPU, RAM                │
+│  - Exit monitoring     - Drive/kernel/initrd args              │
+│  - SPICE port alloc    - SPICE + QMP socket args               │
+├────────────────────────────────────────────────────────────────┤
+│                   QEMU Subprocess                              │
+│                                                                │
+│  macOS:   -accel hvf    (Hypervisor.framework)                 │
+│  Linux:   -accel kvm    (/dev/kvm)                             │
+│  Windows: -accel whpx   (Windows Hypervisor Platform)          │
+└────────────────────────────────────────────────────────────────┘
+
+Rust Middleware (separate processes / out-of-process)
+  rex-config  — TOML config read/write
+  rex-frida   — Frida server lifecycle inside the guest
+  rex-update  — OTA self-update for the host binary
 ```
 
 ## Data Flow
 
-### vCPU Execution Loop
-
-The default build currently stops at the C++ `DeviceManager`. The MMIO → Rust FFI path shown below is the intended design, not the current default runtime wiring.
+### Display Pipeline
 
 ```
-vCPU Thread                    VMM Core                   Device Backend
-     │                            │                            │
-     │── HAL::run() ──────────────│                            │
-     │                            │                            │
-     │◄─ VcpuExit(IoAccess) ──────│                            │
-     │                            │── DeviceManager            │
-     │                            │   ::dispatch_io() ─────────│
-     │                            │                            │── handle I/O
-     │                            │◄─────── response ──────────│
-     │── HAL::run() ──────────────│                            │
-     │                            │                            │
-     │◄─ VcpuExit(MmioAccess) ───│                            │
-     │                            │── FFI::handle_mmio() ──────│
-     │                            │   (cxx bridge to Rust)     │── virtio-mmio
-     │                            │◄─────── DeviceResponse ────│   dispatch
-     │── HAL::run() ──────────────│                            │
+QEMU guest GPU driver
+        │
+        │  virtio-gpu or VGA framebuffer (inside QEMU)
+        ▼
+  QEMU SPICE server
+        │
+        │  SPICE protocol (Unix socket or TCP)
+        ▼
+  SpiceClient (spice-gtk session)
+        │
+        ▼
+  SpiceDisplay (display channel)
+        │  decoded frame / damage region
+        ▼
+  DisplayWidget (Qt widget)
+        │  QPainter / QImage blit
+        ▼
+  Host screen
 ```
 
-### Guest Display Pipeline
+### Input Pipeline
 
 ```
-Guest GPU Driver                 Host
-     │                            │
-     │── virtio-gpu cmd ──────────│
-     │   RESOURCE_CREATE_2D       │── GpuBridge
-     │   TRANSFER_TO_HOST_2D      │   ::resource_create_2d()
-     │   SET_SCANOUT              │   ::transfer_to_host_2d()
-     │   RESOURCE_FLUSH           │   ::set_scanout()
-     │                            │   ::resource_flush()
-     │                            │        │
-     │                            │        ▼
-     │                            │   SoftwareRenderer
-     │                            │   or VirglRenderer
-     │                            │        │
-     │                            │        ▼
-     │                            │   Display (double-buffer)
-     │                            │        │
-     │                            │        ▼
-     │                            │   DisplayWidget (QPainter)
-     │                            │        │
-     │                            │        ▼
-     │                            │   Host Screen
+Host keyboard / mouse / touchscreen
+        │
+        ▼
+  Qt event (QKeyEvent, QMouseEvent, QTouchEvent)
+        │
+        ▼
+  InputHandler
+        │  keycode translation, touch point mapping
+        ▼
+  SpiceInput (input channel)
+        │  SPICE key/mouse/touch messages
+        ▼
+  QEMU SPICE server → guest input driver
 ```
 
-### Network Path
+### VM Control Flow
 
 ```
-Guest App
-  │
-  ▼
-virtio-net (Rust)
-  │
-  ├── TAP backend (bridged networking, requires root)
-  │     └── Host kernel TAP device
-  │
-  └── UserNet backend (userspace NAT, no root needed)
-        ├── DHCP server (10.0.2.0/24 subnet)
-        ├── DNS relay (forwards to host resolver)
-        └── NAT table (connection tracking, port forwarding)
-              └── Host network stack
+Qt GUI action (e.g. "Pause" button)
+        │
+        ▼
+  MainWindow slot
+        │
+        ▼
+  QmpClient::sendCommand("stop")
+        │  JSON over Unix socket: {"execute":"stop"}
+        ▼
+  QEMU process handles command
+        │  JSON response: {"return":{}}
+        ▼
+  QmpClient emits signal
+        │
+        ▼
+  MainWindow updates UI state
 ```
 
-## C++ / Rust Boundary
-
-The FFI boundary is defined in `middleware/rex-ffi/src/lib.rs` using the [cxx](https://cxx.rs) crate:
-
-**C++ → Rust** (vCPU exit handling):
-- `handle_mmio(MmioRequest) → DeviceResponse`
-- `handle_io(IoRequest) → DeviceResponse`
-- `middleware_init()`, `middleware_tick()`
-
-**Rust → C++** (callbacks):
-- `inject_irq(IrqRequest)` — interrupt injection
-- `read_guest_memory() / write_guest_memory()` — DMA
-- `gpu_resource_create_2d()`, `gpu_set_scanout()`, `gpu_resource_flush()` — GPU operations
-
-All FFI types are plain structs with no heap allocation across the boundary.
-
-## Virtio Transport
-
-All virtio devices use the **virtio-mmio** transport (not virtio-pci). Each device is mapped to a dedicated MMIO address range in guest physical memory. The transport implements the full virtio state machine:
+### VM Launch Sequence
 
 ```
-RESET → ACKNOWLEDGE → DRIVER → FEATURES_OK → DRIVER_OK
+User clicks "Start" (or CLI invocation)
+        │
+        ▼
+  QemuConfig::buildArgs()
+  - -machine android-x86,...
+  - -accel hvf|kvm|whpx
+  - -smp <cpus> -m <ram>
+  - -drive file=system.img,...
+  - -kernel bzImage -append "..."
+  - -spice unix,path=/tmp/rex-spice-<id>.sock,...
+  - -qmp unix:/tmp/rex-qmp-<id>.sock,server,wait=off
+        │
+        ▼
+  QemuProcess::start()
+  - QProcess::start(qemu_binary, args)
+  - Wait for SPICE/QMP sockets to appear
+        │
+        ├──────────────────────────┐
+        ▼                          ▼
+  SpiceClient::connect()     QmpClient::connect()
+  - spice_session_connect()  - QLocalSocket connect
+  - Negotiate channels       - Read greeting banner
+        │                          │
+        ▼                          ▼
+  Display + Input ready      VM control ready
+        │
+        ▼
+  MainWindow shows live display
 ```
 
-Virtqueues use split-ring format with the `VIRTIO_F_EVENT_IDX` feature for interrupt suppression.
+## Component Descriptions
 
-## Snapshot Format
+### QemuProcess
 
-```
-Offset  Content
-0x00    SnapshotHeader (magic="REXS", version, timestamp, layout)
-0x30    VcpuSnapshot[0] (X86Regs + X86Sregs)
-...     VcpuSnapshot[N-1]
-var     RLE-compressed guest RAM
-var     Device state (reserved for future)
-```
+Wraps `QProcess` to manage the QEMU subprocess. Responsibilities:
 
-RLE encoding optimizes for zero-filled pages (common in VM memory):
-- **Run**: `[count:u32][byte:u8]` — N copies of the same byte
-- **Literal**: `[0:u32][count:u32][data...]` — raw byte sequence
+- Assembles the QEMU command line via `QemuConfig`
+- Starts and monitors the child process
+- Allocates unique socket paths for SPICE and QMP per VM instance
+- Forwards stdout/stderr to an internal log buffer
+- Emits signals on process exit or crash for GUI recovery handling
 
-## Thread Model
+### QemuConfig
 
-| Thread | Purpose | Pinning |
-|--------|---------|---------|
-| Main | Qt event loop, GUI rendering | — |
-| vCPU-0 | Bootstrap processor execution | P-core preferred |
-| vCPU-N | Application processor execution | P-core preferred |
-| I/O | Async disk/network I/O | E-core or any |
+Builds the QEMU argument list from structured VM settings. Key areas:
 
-The CpuOptimizer detects hybrid architectures (Intel Alder Lake+, Apple M-series) and preferentially pins vCPU threads to performance cores.
+- Machine type and acceleration backend (`-machine`, `-accel`)
+- CPU topology and RAM (`-smp`, `-m`)
+- Block devices: system image, data partition (`-drive`)
+- Direct kernel boot: kernel image, initrd, cmdline (`-kernel`, `-initrd`, `-append`)
+- SPICE server socket (`-spice`)
+- QMP control socket (`-qmp`)
+- Serial console (`-serial`)
 
-## Memory Layout (x86_64)
+### QmpClient
 
-```
-GPA               Content
-0x0000_0000       Real-mode IVT / BDA
-0x0000_7000       Linux boot_params
-0x0002_0000       Kernel command line
-0x0010_0000       Protected-mode kernel (bzImage)
-0x0400_0000       Initrd / initramfs
-...               Guest RAM (up to configured size)
-```
+Implements the QMP (QEMU Machine Protocol) client over a Unix domain socket. Protocol details:
 
-## Memory Layout (ARM64)
+- QEMU sends a greeting JSON object on connect: `{"QMP": {"version": {...}, "capabilities": [...]}}`
+- Client sends `{"execute": "qmp_capabilities"}` to leave negotiation mode
+- Subsequent commands use `{"execute": "<command>", "arguments": {...}}`
+- Responses arrive as `{"return": <value>}` or `{"error": {"class": "...", "desc": "..."}}`
+- Asynchronous events (e.g. `STOP`, `RESUME`, `RESET`) are delivered out-of-band
 
-```
-GPA               Content
-0x4000_0000       RAM base
-0x4008_0000       Kernel Image
-0x4400_0000       Device Tree Blob (DTB)
-0x4800_0000       Initrd / initramfs
-```
+Supported commands: `query-status`, `stop`, `cont`, `system_reset`, `savevm`, `loadvm`, `quit`.
+
+### SpiceClient
+
+Manages the spice-gtk session. Wraps `SpiceSession` and owns the display and input channels:
+
+- `SpiceDisplay` — subscribes to the display channel, receives decoded frames, paints them onto `DisplayWidget`
+- `SpiceInput` — translates Qt input events to SPICE input messages and injects them into the guest
+
+### Qt GUI Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| MainWindow | `mainwindow.*` | Top-level window; sidebar with VM action buttons (start, pause, resume, stop, snapshot) |
+| DisplayWidget | `display_widget.*` | SPICE display surface; scales framebuffer to widget size |
+| InputHandler | `input_handler.*` | Translates Qt key/mouse/touch events for SPICE injection |
+| KeymapEditor | `keymap_editor.*` | Visual editor for rebinding host keys to guest keycodes; game profiles |
+| SettingsDialog | `settings_dialog.*` | Tabbed dialog: VM hardware, display, network, Frida |
+| FridaPanel | `frida_panel.*` | Frida script editor with syntax highlighting and a live output console |
+
+## Rust Middleware
+
+The three middleware crates run independently from the Qt process:
+
+| Crate | Role |
+|-------|------|
+| `rex-config` | Reads and writes TOML configuration files; validates schema; exposes typed structs |
+| `rex-frida` | Downloads the Frida server binary for the guest architecture, pushes it via ADB, and keeps it running |
+| `rex-update` | Polls a release feed, downloads a signed update bundle, and performs in-place binary replacement |
+
+## Platform Acceleration
+
+| Platform | Acceleration | Notes |
+|----------|-------------|-------|
+| macOS (Intel + Apple Silicon) | `-accel hvf` | Hypervisor.framework; no root required |
+| Linux | `-accel kvm` | `/dev/kvm`; user must be in `kvm` group |
+| Windows | `-accel whpx` | Windows Hypervisor Platform; enable in Windows Features |
+
+QEMU falls back to `-accel tcg` if hardware virtualization is unavailable, but this is not supported for production use.
 
 ## Build System
 
 ```
 CMakeLists.txt
-├── Corrosion (optional experimental import) ─ middleware/Cargo.toml
-├── GoogleTest (FetchContent)
-├── rex_hal        ← src/hal/ (platform-conditional sources)
-├── rex_vmm        ← src/vmm/ (VM core + optimizers)
-├── rex_devices_legacy ← src/devices/
-├── rex_gpu        ← src/gpu/ (renderers + bridge)
-├── rex_platform   ← src/platform/ (per-OS source)
-├── rexplayer      ← src/gui/ (Qt 6, optional)
-└── tests/         ← GTest executables
+├── FindQt6 (Core, Widgets, Network)
+├── FindSPICE (spice-gtk, glib)
+├── rexplayer  ← src/gui/ (all GUI + QEMU process + SPICE + QMP sources)
+└── tests/     ← GTest executables
+
+middleware/Cargo.toml  (separate workspace)
+├── rex-config
+├── rex-frida
+└── rex-update
 ```
 
-When `REX_ENABLE_EXPERIMENTAL_MIDDLEWARE=ON`, Rust crates are imported by Corrosion and the cxx bridge can be generated. In the default build, the Rust workspace is built and tested separately.
+The Qt GUI and QEMU process manager are compiled into a single `rexplayer` binary. The Rust middleware crates are built separately and are not linked into the Qt binary.
