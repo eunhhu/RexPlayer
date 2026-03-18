@@ -31,6 +31,7 @@ set(CMAKE_AUTOUIC ON)
 # --- QEMU process management ---
 add_library(rex_qemu STATIC
     src/qemu/qmp_client.cpp
+    src/qemu/qemu_config.cpp
 )
 target_include_directories(rex_qemu PUBLIC src/qemu)
 target_link_libraries(rex_qemu PUBLIC Qt6::Core Qt6::Network)
