@@ -18,9 +18,16 @@ option(REX_ENABLE_TESTS "Build tests" ON)
 
 # --- Find dependencies ---
 find_package(Qt6 COMPONENTS Widgets Gui Core Network Test REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPICE_CLIENT IMPORTED_TARGET spice-client-glib-2.0)
-pkg_check_modules(GLIB IMPORTED_TARGET glib-2.0)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(SPICE_CLIENT IMPORTED_TARGET spice-client-glib-2.0)
+    pkg_check_modules(GLIB IMPORTED_TARGET glib-2.0)
+endif()
+if(SPICE_CLIENT_FOUND)
+    message(STATUS "SPICE client: found (${SPICE_CLIENT_VERSION})")
+else()
+    message(STATUS "SPICE client: not found (VNC-only mode)")
+endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -44,14 +51,19 @@ add_library(rex_vnc STATIC
 target_include_directories(rex_vnc PUBLIC src/vnc)
 target_link_libraries(rex_vnc PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
 
-# --- SPICE client ---
-add_library(rex_spice STATIC
-    src/spice/spice_client.cpp
-    src/spice/spice_display.cpp
-    src/spice/spice_input.cpp
-)
-target_include_directories(rex_spice PUBLIC src/spice)
-target_link_libraries(rex_spice PUBLIC Qt6::Core Qt6::Gui PkgConfig::SPICE_CLIENT PkgConfig::GLIB)
+# --- SPICE client (optional — requires libspice-client-glib) ---
+if(SPICE_CLIENT_FOUND AND GLIB_FOUND)
+    add_library(rex_spice STATIC
+        src/spice/spice_client.cpp
+        src/spice/spice_display.cpp
+        src/spice/spice_input.cpp
+    )
+    target_include_directories(rex_spice PUBLIC src/spice)
+    target_link_libraries(rex_spice PUBLIC Qt6::Core Qt6::Gui PkgConfig::SPICE_CLIENT PkgConfig::GLIB)
+    set(REX_HAS_SPICE ON)
+else()
+    set(REX_HAS_SPICE OFF)
+endif()
 
 # --- GUI executable ---
 add_executable(rexplayer
@@ -64,9 +76,13 @@ add_executable(rexplayer
     src/gui/frida_panel.cpp
 )
 target_link_libraries(rexplayer PRIVATE
-    rex_qemu rex_vnc rex_spice
+    rex_qemu rex_vnc
     Qt6::Widgets Qt6::Gui Qt6::Core
 )
+if(REX_HAS_SPICE)
+    target_link_libraries(rexplayer PRIVATE rex_spice)
+    target_compile_definitions(rexplayer PRIVATE REX_HAS_SPICE=1)
+endif()
 target_include_directories(rexplayer PRIVATE src/gui)
 
 # --- Tests ---
