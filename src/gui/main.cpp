@@ -4,6 +4,7 @@
 #include "../vnc/vnc_client.h"
 #include "../emu/emulator_process.h"
 #include "../emu/grpc_display.h"
+#include "../emu/window_grabber.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -101,15 +102,16 @@ int main(int argc, char* argv[]) {
         qemu->start(config);
 
     } else {
-        // --- Emulator mode (default — Android with gRPC) ---
-        fprintf(stderr, "main: Emulator mode (gRPC)\n");
+        // --- Emulator mode (default — window embedding for 60fps) ---
+        fprintf(stderr, "main: Emulator mode (window embed)\n");
 
         auto* emu = new rex::emu::EmulatorProcess();
-        auto* grpc = new rex::emu::GrpcDisplay();
+        auto* grabber = new rex::emu::WindowGrabber();
 
         rex::emu::EmulatorProcess::Config config;
         config.grpc_port = static_cast<uint16_t>(parser.value(grpc_port_opt).toUInt());
         config.gpu_mode = parser.value(gpu_opt);
+        config.no_window = false; // Need the window to embed it!
 
         // Find AVD
         if (parser.isSet(avd_opt)) {
@@ -127,17 +129,16 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        fprintf(stderr, "main: using AVD '%s', gRPC port %d\n",
-                config.avd_name.toUtf8().constData(), config.grpc_port);
+        fprintf(stderr, "main: using AVD '%s'\n", config.avd_name.toUtf8().constData());
 
-        // Connect gRPC after emulator boots
-        QObject::connect(emu, &rex::emu::EmulatorProcess::started, [grpc, &config]() {
-            fprintf(stderr, "main: emulator booted, connecting gRPC...\n");
-            grpc->connectToEmulator("127.0.0.1", config.grpc_port);
+        // After emulator boots, grab its window and embed into our DisplayWidget
+        QObject::connect(emu, &rex::emu::EmulatorProcess::started,
+                         [grabber, &config, &window]() {
+            fprintf(stderr, "main: emulator booted, grabbing window...\n");
+            grabber->startGrabbing(window.centralWidget(), config.avd_name);
         });
 
         window.setEmulatorProcess(emu);
-        window.setGrpcDisplay(grpc);
         emu->start(config);
     }
 
