@@ -42,11 +42,13 @@ QStringList QemuConfig::toCommandLine() const {
 
     // Disk images — Android uses separate partitions as virtio-blk devices
     // Order matters: vda=system, vdb=vendor, vdc=userdata, vdd=cache
-    auto addDrive = [&args](const QString& path, const QString& id) {
+    int drive_index = 0;
+    auto addDrive = [&args, &drive_index](const QString& path, const QString& id) {
         if (path.isEmpty()) return;
         QString fmt = path.endsWith(".qcow2") ? "qcow2" : "raw";
-        args << "-drive" << QString("index=0,if=none,id=%1,file=%2,format=%3").arg(id, path, fmt);
+        args << "-drive" << QString("if=none,id=%1,file=%2,format=%3").arg(id, path, fmt);
         args << "-device" << QString("virtio-blk-pci,drive=%1").arg(id);
+        drive_index++;
     };
 
     if (!vendor_image_path.isEmpty()) {
