@@ -35,7 +35,7 @@ struct QemuConfig {
     enum class Accelerator { Auto, HVF, KVM, WHPX, TCG };
     Accelerator accelerator = Accelerator::Auto;
 
-    uint16_t frida_host_port = 27042;
+    uint16_t frida_host_port = 0;  // 0 = disabled, set to 27042 to enable
     uint16_t frida_guest_port = 27042;
 
     QStringList extra_args;
