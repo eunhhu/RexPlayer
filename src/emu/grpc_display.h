@@ -3,10 +3,10 @@
 #include <QObject>
 #include <QImage>
 #include <QMutex>
-#include <QThread>
 #include <QString>
 #include <memory>
 #include <atomic>
+#include <thread>
 
 // Forward-declare gRPC types to avoid including heavy headers here
 namespace grpc { class Channel; }
@@ -58,7 +58,7 @@ private:
     void streamLoop();
 
     std::shared_ptr<grpc::Channel> channel_;
-    std::unique_ptr<QThread> stream_thread_;
+    std::unique_ptr<std::thread> stream_thread_;
     std::atomic<bool> connected_{false};
     std::atomic<bool> should_stop_{false};
 

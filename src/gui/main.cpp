@@ -2,17 +2,13 @@
 #include "../qemu/qemu_process.h"
 #include "../qemu/qemu_config.h"
 #include "../vnc/vnc_client.h"
+#include "../emu/emulator_process.h"
+#include "../emu/grpc_display.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QStyleFactory>
-#include <QStandardPaths>
-#include <QDir>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QProcess>
 #include <QMessageBox>
 #include <cstdio>
 
@@ -30,178 +26,120 @@ int main(int argc, char* argv[]) {
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption kernel_opt({"k", "kernel"}, "Kernel image path.", "file");
+    // Emulator mode options
+    QCommandLineOption avd_opt("avd", "AVD name (auto-detect if omitted).", "name");
+    QCommandLineOption grpc_port_opt("grpc-port", "gRPC port (default: 8554).", "port", "8554");
+    QCommandLineOption gpu_opt("gpu", "GPU mode (default: swiftshader_indirect).", "mode", "swiftshader_indirect");
+
+    // QEMU direct mode options
+    QCommandLineOption kernel_opt({"k", "kernel"}, "Kernel image (enables QEMU direct mode).", "file");
     QCommandLineOption system_opt({"s", "system-image"}, "System image path.", "file");
     QCommandLineOption vendor_opt("vendor", "Vendor image path.", "file");
     QCommandLineOption userdata_opt("userdata", "Userdata image path.", "file");
     QCommandLineOption cache_opt("cache", "Cache image path.", "file");
-    QCommandLineOption cpus_opt("cpus", "Number of vCPUs (default: 4).", "n", "4");
-    QCommandLineOption ram_opt("ram", "RAM in MB (default: 4096).", "mb", "4096");
-    QCommandLineOption initrd_opt("initrd", "Initrd/initramfs path.", "file");
-    QCommandLineOption qemu_opt("qemu-binary", "Path to QEMU binary.", "file");
-    QCommandLineOption bios_opt("bios", "BIOS/bootloader path (e.g. U-Boot).", "file");
-    QCommandLineOption adb_port_opt("adb-port", "ADB host port (default: 5555, 0=disable).", "port", "5555");
-    QCommandLineOption frida_port_opt("frida-port", "Frida host port (default: 27042, 0=disable).", "port", "27042");
+    QCommandLineOption initrd_opt("initrd", "Initrd path.", "file");
+    QCommandLineOption qemu_opt("qemu-binary", "QEMU binary path.", "file");
 
+    // Common options
+    QCommandLineOption cpus_opt("cpus", "vCPU count (default: 4).", "n", "4");
+    QCommandLineOption ram_opt("ram", "RAM in MB (default: 4096).", "mb", "4096");
+
+    parser.addOption(avd_opt);
+    parser.addOption(grpc_port_opt);
+    parser.addOption(gpu_opt);
     parser.addOption(kernel_opt);
     parser.addOption(system_opt);
     parser.addOption(vendor_opt);
     parser.addOption(userdata_opt);
     parser.addOption(cache_opt);
-    parser.addOption(cpus_opt);
-    parser.addOption(ram_opt);
     parser.addOption(initrd_opt);
     parser.addOption(qemu_opt);
-    parser.addOption(bios_opt);
-    parser.addOption(adb_port_opt);
-    parser.addOption(frida_port_opt);
+    parser.addOption(cpus_opt);
+    parser.addOption(ram_opt);
     parser.process(app);
 
-    // Build QEMU config
-    rex::qemu::QemuConfig qemu_config;
-    qemu_config.vcpus = parser.value(cpus_opt).toUInt();
-    qemu_config.ram_mb = parser.value(ram_opt).toUInt();
-    qemu_config.adb_host_port = static_cast<uint16_t>(parser.value(adb_port_opt).toUInt());
-    qemu_config.frida_host_port = static_cast<uint16_t>(parser.value(frida_port_opt).toUInt());
-
-    if (parser.isSet(kernel_opt))
-        qemu_config.kernel_path = parser.value(kernel_opt);
-    if (parser.isSet(system_opt))
-        qemu_config.system_image_path = parser.value(system_opt);
-    if (parser.isSet(vendor_opt))
-        qemu_config.vendor_image_path = parser.value(vendor_opt);
-    if (parser.isSet(userdata_opt))
-        qemu_config.userdata_image_path = parser.value(userdata_opt);
-    if (parser.isSet(cache_opt))
-        qemu_config.cache_image_path = parser.value(cache_opt);
-    if (parser.isSet(initrd_opt))
-        qemu_config.initrd_path = parser.value(initrd_opt);
-    if (parser.isSet(qemu_opt))
-        qemu_config.qemu_binary = parser.value(qemu_opt);
-    if (parser.isSet(bios_opt)) {
-        qemu_config.bios_path = parser.value(bios_opt);
-        qemu_config.boot_mode = rex::qemu::QemuConfig::BootMode::Bios;
-    }
-
-    // Auto-detect images from ~/.rexplayer/images/ if nothing specified
-    bool has_any_image = !qemu_config.kernel_path.isEmpty()
-                      || !qemu_config.system_image_path.isEmpty()
-                      || !qemu_config.bios_path.isEmpty();
-
-    if (!has_any_image) {
-        QString images_dir = QDir::homePath() + "/.rexplayer/images";
-        QString images_json = images_dir + "/images.json";
-
-        if (QFile::exists(images_json)) {
-            // Load from images.json
-            QFile f(images_json);
-            if (f.open(QIODevice::ReadOnly)) {
-                auto doc = QJsonDocument::fromJson(f.readAll());
-                auto obj = doc.object();
-                auto trySet = [](QString& field, const QJsonObject& o, const char* key) {
-                    QString val = o[key].toString();
-                    if (!val.isEmpty() && QFile::exists(val)) field = val;
-                };
-                trySet(qemu_config.kernel_path, obj, "kernel");
-                trySet(qemu_config.initrd_path, obj, "initrd");
-                trySet(qemu_config.system_image_path, obj, "system");
-                trySet(qemu_config.userdata_image_path, obj, "userdata");
-                trySet(qemu_config.cache_image_path, obj, "cache");
-                fprintf(stderr, "main: loaded image config from %s\n",
-                        images_json.toUtf8().constData());
-            }
-        } else {
-            // No images found — offer to download
-            auto result = QMessageBox::question(nullptr, "RexPlayer",
-                "Android images not found.\n\n"
-                "Run the setup script to download them?\n"
-                "(~2GB download, requires internet)\n\n"
-                "Script: scripts/fetch_android.sh",
-                QMessageBox::Yes | QMessageBox::No);
-
-            if (result == QMessageBox::Yes) {
-                // Find fetch_android.sh relative to executable
-                QString script = QApplication::applicationDirPath() + "/../scripts/fetch_android.sh";
-                if (!QFile::exists(script))
-                    script = QApplication::applicationDirPath() + "/../../scripts/fetch_android.sh";
-
-                if (QFile::exists(script)) {
-                    fprintf(stderr, "main: running %s\n", script.toUtf8().constData());
-                    QProcess::execute("bash", {script});
-                    // Reload images.json after script completes
-                    if (QFile::exists(images_json)) {
-                        QFile f2(images_json);
-                        if (f2.open(QIODevice::ReadOnly)) {
-                            auto doc = QJsonDocument::fromJson(f2.readAll());
-                            auto obj = doc.object();
-                            auto trySet = [](QString& field, const QJsonObject& o, const char* key) {
-                                QString val = o[key].toString();
-                                if (!val.isEmpty() && QFile::exists(val)) field = val;
-                            };
-                            trySet(qemu_config.kernel_path, obj, "kernel");
-                            trySet(qemu_config.initrd_path, obj, "initrd");
-                            trySet(qemu_config.system_image_path, obj, "system");
-                            trySet(qemu_config.userdata_image_path, obj, "userdata");
-                            trySet(qemu_config.cache_image_path, obj, "cache");
-                        }
-                    }
-                } else {
-                    QMessageBox::warning(nullptr, "RexPlayer",
-                        "Setup script not found.\n\n"
-                        "Run manually:\n  ./scripts/fetch_android.sh");
-                }
-            }
-        }
-    }
-
-    // Set kernel cmdline
-    if (!qemu_config.kernel_path.isEmpty() && qemu_config.cmdline.isEmpty()) {
-        if (!qemu_config.system_image_path.isEmpty()) {
-            // Android boot — use full Android cmdline
-            qemu_config.cmdline = rex::qemu::QemuConfig::androidCmdline();
-        } else {
-            // Plain Linux boot
-            qemu_config.cmdline =
-                "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000";
-        }
-    }
-
-    qemu_config.generateSocketPaths("");
-
-    auto* qemu = new rex::qemu::QemuProcess();
-    auto* vnc = new rex::vnc::VncClient();
-
-    // After QMP ready, query actual VNC port then connect
-    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [vnc, qemu]() {
-        fprintf(stderr, "main: QMP ready, querying VNC port...\n");
-        qemu->qmp()->execute("query-vnc", {}, [vnc](bool ok, const QJsonObject& resp) {
-            if (!ok) {
-                fprintf(stderr, "main: query-vnc failed, trying default port 5900\n");
-                vnc->connectToHost("127.0.0.1", 5900);
-                return;
-            }
-            auto ret = resp["return"].toObject();
-            QString host = ret["host"].toString("127.0.0.1");
-            int port = ret["service"].toString("5900").toInt();
-            fprintf(stderr, "main: VNC at %s:%d\n", host.toUtf8().constData(), port);
-            vnc->connectToHost(host, static_cast<quint16>(port));
-        });
-    });
+    bool qemu_mode = parser.isSet(kernel_opt);
 
     rex::gui::MainWindow window;
-    window.setQemuProcess(qemu);
-    window.setVncClient(vnc);
     window.show();
 
-    // Auto-start VM if any image is specified
-    bool has_boot = !qemu_config.kernel_path.isEmpty()
-                 || !qemu_config.system_image_path.isEmpty()
-                 || !qemu_config.bios_path.isEmpty();
-    if (has_boot)
-        qemu->start(qemu_config);
+    if (qemu_mode) {
+        // --- QEMU direct mode (Linux kernel boot) ---
+        fprintf(stderr, "main: QEMU direct mode\n");
 
-    int ret = app.exec();
-    delete vnc;
-    delete qemu;
-    return ret;
+        auto* qemu = new rex::qemu::QemuProcess();
+        auto* vnc = new rex::vnc::VncClient();
+
+        rex::qemu::QemuConfig config;
+        config.vcpus = parser.value(cpus_opt).toUInt();
+        config.ram_mb = parser.value(ram_opt).toUInt();
+        config.kernel_path = parser.value(kernel_opt);
+        if (parser.isSet(system_opt)) config.system_image_path = parser.value(system_opt);
+        if (parser.isSet(vendor_opt)) config.vendor_image_path = parser.value(vendor_opt);
+        if (parser.isSet(userdata_opt)) config.userdata_image_path = parser.value(userdata_opt);
+        if (parser.isSet(cache_opt)) config.cache_image_path = parser.value(cache_opt);
+        if (parser.isSet(initrd_opt)) config.initrd_path = parser.value(initrd_opt);
+        if (parser.isSet(qemu_opt)) config.qemu_binary = parser.value(qemu_opt);
+        if (config.cmdline.isEmpty()) {
+            config.cmdline = config.system_image_path.isEmpty()
+                ? "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000"
+                : rex::qemu::QemuConfig::androidCmdline();
+        }
+        config.generateSocketPaths("");
+
+        QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [vnc, qemu]() {
+            qemu->qmp()->execute("query-vnc", {}, [vnc](bool ok, const QJsonObject& resp) {
+                auto ret = resp["return"].toObject();
+                int port = ok ? ret["service"].toString("5900").toInt() : 5900;
+                fprintf(stderr, "main: VNC at port %d\n", port);
+                vnc->connectToHost("127.0.0.1", static_cast<quint16>(port));
+            });
+        });
+
+        window.setQemuProcess(qemu);
+        window.setVncClient(vnc);
+        qemu->start(config);
+
+    } else {
+        // --- Emulator mode (default — Android with gRPC) ---
+        fprintf(stderr, "main: Emulator mode (gRPC)\n");
+
+        auto* emu = new rex::emu::EmulatorProcess();
+        auto* grpc = new rex::emu::GrpcDisplay();
+
+        rex::emu::EmulatorProcess::Config config;
+        config.grpc_port = static_cast<uint16_t>(parser.value(grpc_port_opt).toUInt());
+        config.gpu_mode = parser.value(gpu_opt);
+
+        // Find AVD
+        if (parser.isSet(avd_opt)) {
+            config.avd_name = parser.value(avd_opt);
+        } else {
+            config.avd_name = rex::emu::EmulatorProcess::findOrCreateAvd();
+            if (config.avd_name.isEmpty()) {
+                QMessageBox::critical(nullptr, "RexPlayer",
+                    "No Android Virtual Device (AVD) found.\n\n"
+                    "Please create one in Android Studio or run:\n"
+                    "  avdmanager create avd -n RexPlayer "
+                    "-k 'system-images;android-36.1;google_apis_playstore;arm64-v8a' "
+                    "-d pixel");
+                return 1;
+            }
+        }
+
+        fprintf(stderr, "main: using AVD '%s', gRPC port %d\n",
+                config.avd_name.toUtf8().constData(), config.grpc_port);
+
+        // Connect gRPC after emulator boots
+        QObject::connect(emu, &rex::emu::EmulatorProcess::started, [grpc, &config]() {
+            fprintf(stderr, "main: emulator booted, connecting gRPC...\n");
+            grpc->connectToEmulator("127.0.0.1", config.grpc_port);
+        });
+
+        window.setEmulatorProcess(emu);
+        window.setGrpcDisplay(grpc);
+        emu->start(config);
+    }
+
+    return app.exec();
 }
