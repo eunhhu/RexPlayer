@@ -12,10 +12,20 @@ struct QemuConfig {
     QString machine = "virt,gic-version=3";
     QString cpu = "host";
 
+    // Boot mode
+    enum class BootMode { Kernel, Bios };
+    BootMode boot_mode = BootMode::Kernel;
+
     QString kernel_path;
     QString initrd_path;
     QString cmdline;
+    QString bios_path;  // for BootMode::Bios (e.g. U-Boot)
+
+    // Disk images — Android needs system, vendor, userdata, cache
     QString system_image_path;
+    QString vendor_image_path;
+    QString userdata_image_path;
+    QString cache_image_path;
 
     uint32_t display_width = 1080;
     uint32_t display_height = 1920;
@@ -27,15 +37,16 @@ struct QemuConfig {
     // Display backend
     enum class DisplayBackend { Auto, VNC, SPICE };
     DisplayBackend display_backend = DisplayBackend::Auto;
-    uint16_t vnc_port = 5900;  // VNC display :0 = port 5900
+    uint16_t vnc_port = 5900;
 
-    uint16_t adb_host_port = 0;  // 0 = no port forwarding, set to 5555 to enable
+    // Network — ADB + Frida port forwarding
+    uint16_t adb_host_port = 5555;
     uint16_t adb_guest_port = 5555;
 
     enum class Accelerator { Auto, HVF, KVM, WHPX, TCG };
     Accelerator accelerator = Accelerator::Auto;
 
-    uint16_t frida_host_port = 0;  // 0 = disabled, set to 27042 to enable
+    uint16_t frida_host_port = 27042;
     uint16_t frida_guest_port = 27042;
 
     QStringList extra_args;
@@ -44,6 +55,9 @@ struct QemuConfig {
     static QString findQemuBinary();
     static Accelerator detectAccelerator();
     void generateSocketPaths(const QString& instance_id);
+
+    /// Default Android kernel cmdline
+    static QString androidCmdline();
 };
 
 } // namespace rex::qemu

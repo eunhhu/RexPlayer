@@ -79,7 +79,7 @@ TEST(QemuConfigTest, DevicesPresent) {
     EXPECT_TRUE(args.contains("virtio-keyboard-pci"));
     EXPECT_TRUE(args.contains("virtio-tablet-pci"));
     EXPECT_TRUE(args.contains("intel-hda"));
-    EXPECT_TRUE(args.contains("hda-duplex"));
+    EXPECT_TRUE(args.contains("hda-duplex,audiodev=snd0"));
     EXPECT_TRUE(args.contains("virtio-net-pci,netdev=net0"));
 }
 
