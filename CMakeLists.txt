@@ -47,23 +47,27 @@ endif()
 add_library(rex_emu STATIC
     src/emu/emulator_process.cpp
     src/emu/grpc_display.cpp
+    src/emu/window_grabber.cpp
     src/emu/generated/emulator_controller.pb.cc
     src/emu/generated/emulator_controller.grpc.pb.cc
 )
 target_include_directories(rex_emu PUBLIC src/emu src/emu/generated)
 if(gRPC_FOUND)
     target_link_libraries(rex_emu PUBLIC
-        Qt6::Core Qt6::Gui Qt6::Network
+        Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network
         gRPC::grpc++ protobuf::libprotobuf
     )
 elseif(GRPC_FOUND)
     target_link_libraries(rex_emu PUBLIC
-        Qt6::Core Qt6::Gui Qt6::Network
+        Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network
         PkgConfig::GRPC protobuf::libprotobuf
     )
 else()
     message(WARNING "gRPC not found — emulator gRPC client will not link")
-    target_link_libraries(rex_emu PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
+    target_link_libraries(rex_emu PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network)
+endif()
+if(APPLE)
+    target_link_libraries(rex_emu PUBLIC "-framework CoreGraphics")
 endif()
 
 # --- QEMU process management ---

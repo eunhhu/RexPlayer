@@ -6,6 +6,12 @@
 #include <QDateTime>
 #include <cstdio>
 
+#ifndef _WIN32
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 using android::emulation::control::EmulatorController;
 using android::emulation::control::ImageFormat;
 using android::emulation::control::Image;
@@ -13,6 +19,7 @@ using android::emulation::control::KeyboardEvent;
 using android::emulation::control::TouchEvent;
 using android::emulation::control::Touch;
 using android::emulation::control::MouseEvent;
+using android::emulation::control::ImageTransport;
 
 namespace rex::emu {
 
@@ -111,60 +118,65 @@ void GrpcDisplay::sendMouse(int x, int y, int buttons) {
 void GrpcDisplay::streamLoop() {
     auto stub = EmulatorController::NewStub(channel_);
 
+    // Use getScreenshot in a tight loop — faster than streamScreenshot
+    // because we control the pacing and avoid server-side buffering
     ImageFormat format;
-    format.set_format(ImageFormat::RGBA8888);
-    // 0 = native resolution
-    format.set_width(0);
-    format.set_height(0);
+    format.set_format(ImageFormat::RGB888); // 3 bpp — 30% less data than RGBA
+    format.set_width(540);   // half res: 540x1200 = 1.9MB vs 10MB at native
+    format.set_height(1200);
+
+    fprintf(stderr, "grpc: starting frame loop (540x1200 RGB888)\n");
 
     while (!should_stop_) {
         grpc::ClientContext ctx;
-        auto reader = stub->streamScreenshot(&ctx, format);
+        ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(5));
 
         Image image;
-        while (reader->Read(&image) && !should_stop_) {
-            const auto& data = image.image();
-            int w = image.format().width();
-            int h = image.format().height();
+        auto status = stub->getScreenshot(&ctx, format, &image);
 
-            if (w > 0 && h > 0 && !data.empty()) {
-                QImage frame(reinterpret_cast<const uchar*>(data.data()),
-                             w, h, w * 4, QImage::Format_RGBA8888);
-
-                {
-                    QMutexLocker lock(&mutex_);
-                    frame_ = frame.copy(); // deep copy since data is temporary
-                    if (width_ != w || height_ != h) {
-                        width_ = w;
-                        height_ = h;
-                        QMetaObject::invokeMethod(this, [this, w, h]() {
-                            emit resolutionChanged(w, h);
-                        }, Qt::QueuedConnection);
-                    }
-                }
-
-                // FPS tracking
-                frame_count_++;
-                qint64 now = QDateTime::currentMSecsSinceEpoch();
-                if (last_fps_time_ == 0) {
-                    last_fps_time_ = now;
-                } else if (now - last_fps_time_ >= 1000) {
-                    fps_ = frame_count_.load() * 1000.0 / (now - last_fps_time_);
-                    frame_count_ = 0;
-                    last_fps_time_ = now;
-                }
-
-                QMetaObject::invokeMethod(this, [this]() {
-                    emit frameReady();
-                }, Qt::QueuedConnection);
+        if (!status.ok()) {
+            if (!should_stop_) {
+                fprintf(stderr, "grpc: getScreenshot failed: %s\n",
+                        status.error_message().c_str());
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
+            continue;
         }
 
-        auto status = reader->Finish();
-        if (!status.ok() && !should_stop_) {
-            fprintf(stderr, "grpc: stream ended: %s, reconnecting...\n",
-                    status.error_message().c_str());
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+        const auto& data = image.image();
+        int w = image.format().width();
+        int h = image.format().height();
+
+        if (w > 0 && h > 0 && !data.empty()) {
+            QImage frame(reinterpret_cast<const uchar*>(data.data()),
+                         w, h, w * 3, QImage::Format_RGB888);
+
+            {
+                QMutexLocker lock(&mutex_);
+                frame_ = frame.copy();
+                if (width_ != w || height_ != h) {
+                    width_ = w;
+                    height_ = h;
+                    QMetaObject::invokeMethod(this, [this, w, h]() {
+                        emit resolutionChanged(w, h);
+                    }, Qt::QueuedConnection);
+                }
+            }
+
+            // FPS tracking
+            frame_count_++;
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (last_fps_time_ == 0) {
+                last_fps_time_ = now;
+            } else if (now - last_fps_time_ >= 1000) {
+                fps_ = frame_count_.load() * 1000.0 / (now - last_fps_time_);
+                frame_count_ = 0;
+                last_fps_time_ = now;
+            }
+
+            QMetaObject::invokeMethod(this, [this]() {
+                emit frameReady();
+            }, Qt::QueuedConnection);
         }
     }
 
