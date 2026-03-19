@@ -31,23 +31,16 @@ void GrpcDisplay::connectToEmulator(const QString& host, uint16_t port) {
     QString target = QString("%1:%2").arg(host).arg(port);
     fprintf(stderr, "grpc: connecting to %s\n", target.toUtf8().constData());
 
-    channel_ = grpc::CreateChannel(target.toStdString(),
-                                    grpc::InsecureChannelCredentials());
+    grpc::ChannelArguments args;
+    args.SetMaxReceiveMessageSize(64 * 1024 * 1024); // 64MB — enough for 4K RGBA
+    channel_ = grpc::CreateCustomChannel(target.toStdString(),
+                                          grpc::InsecureChannelCredentials(), args);
 
     should_stop_ = false;
     connected_ = true;
 
-    // Start streaming in a background thread
-    stream_thread_ = std::make_unique<QThread>();
-    QObject* worker = new QObject();
-    worker->moveToThread(stream_thread_.get());
-
-    connect(stream_thread_.get(), &QThread::started, [this]() {
-        streamLoop();
-    });
-    connect(stream_thread_.get(), &QThread::finished, worker, &QObject::deleteLater);
-
-    stream_thread_->start();
+    // Start streaming in a std::thread (not QThread — avoids event loop issues)
+    stream_thread_ = std::make_unique<std::thread>(&GrpcDisplay::streamLoop, this);
     emit connected();
 }
 
@@ -55,9 +48,8 @@ void GrpcDisplay::disconnect() {
     should_stop_ = true;
     connected_ = false;
 
-    if (stream_thread_ && stream_thread_->isRunning()) {
-        stream_thread_->quit();
-        stream_thread_->wait(3000);
+    if (stream_thread_ && stream_thread_->joinable()) {
+        stream_thread_->join();
     }
     stream_thread_.reset();
     channel_.reset();
@@ -172,7 +164,7 @@ void GrpcDisplay::streamLoop() {
         if (!status.ok() && !should_stop_) {
             fprintf(stderr, "grpc: stream ended: %s, reconnecting...\n",
                     status.error_message().c_str());
-            QThread::msleep(1000);
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }
 

@@ -8,6 +8,7 @@
 
 namespace rex::qemu { class QemuProcess; }
 namespace rex::vnc { class VncClient; }
+namespace rex::emu { class EmulatorProcess; class GrpcDisplay; }
 
 namespace rex::gui {
 
@@ -22,6 +23,8 @@ public:
 
     void setQemuProcess(rex::qemu::QemuProcess* qemu);
     void setVncClient(rex::vnc::VncClient* vnc);
+    void setEmulatorProcess(rex::emu::EmulatorProcess* emu);
+    void setGrpcDisplay(rex::emu::GrpcDisplay* grpc);
 
 private slots:
     void onVmStateChanged();
@@ -48,6 +51,8 @@ private:
 
     rex::qemu::QemuProcess* qemu_ = nullptr;
     rex::vnc::VncClient* vnc_ = nullptr;
+    rex::emu::EmulatorProcess* emu_ = nullptr;
+    rex::emu::GrpcDisplay* grpc_ = nullptr;
     DisplayWidget* display_ = nullptr;
 
     QToolBar* sidebar_ = nullptr;

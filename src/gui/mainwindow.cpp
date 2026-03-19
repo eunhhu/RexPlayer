@@ -3,6 +3,8 @@
 #include "settings_dialog.h"
 #include "../qemu/qemu_process.h"
 #include "../vnc/vnc_client.h"
+#include "../emu/emulator_process.h"
+#include "../emu/grpc_display.h"
 
 #include <QMenuBar>
 #include <QStatusBar>
@@ -173,6 +175,21 @@ void MainWindow::setVncClient(rex::vnc::VncClient* vnc) {
     display_->setVncClient(vnc);
 }
 
+void MainWindow::setEmulatorProcess(rex::emu::EmulatorProcess* emu) {
+    emu_ = emu;
+    connect(emu_, &rex::emu::EmulatorProcess::stateChanged,
+            this, &MainWindow::onVmStateChanged);
+    connect(emu_, &rex::emu::EmulatorProcess::error,
+            this, [this](const QString& msg) {
+        statusBar()->showMessage(msg, 5000);
+    });
+}
+
+void MainWindow::setGrpcDisplay(rex::emu::GrpcDisplay* grpc) {
+    grpc_ = grpc;
+    display_->setGrpcDisplay(grpc);
+}
+
 void MainWindow::createMenus() {
     auto* file = menuBar()->addMenu("&File");
     file->addAction("&Screenshot", this, &MainWindow::onScreenshot, QKeySequence("Ctrl+S"));
@@ -269,6 +286,16 @@ void MainWindow::createStatusBar_() {
 }
 
 void MainWindow::onVmStateChanged() {
+    if (emu_) {
+        using S = rex::emu::EmulatorProcess::State;
+        switch (emu_->state()) {
+            case S::Stopped:  status_vm_->setText("Stopped"); break;
+            case S::Starting: status_vm_->setText("Booting Android..."); break;
+            case S::Running:  status_vm_->setText("Running"); break;
+            case S::Error:    status_vm_->setText("Error"); break;
+        }
+        return;
+    }
     if (!qemu_) return;
     using S = rex::qemu::QemuProcess::State;
     switch (qemu_->state()) {
@@ -375,6 +402,11 @@ void MainWindow::onSettings() {
 }
 
 void MainWindow::updateStatusBar() {
+    if (grpc_) {
+        status_fps_->setText(QString("%1 FPS").arg(grpc_->fps(), 0, 'f', 0));
+        status_spice_->setText(grpc_->isConnected() ? "gRPC OK" : "gRPC ---");
+        return;
+    }
     if (vnc_) {
         status_fps_->setText(QString("%1 FPS").arg(vnc_->fps(), 0, 'f', 0));
         status_spice_->setText(vnc_->isConnected() ? "VNC OK" : "VNC ---");

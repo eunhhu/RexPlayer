@@ -4,6 +4,7 @@
 #include <QImage>
 
 namespace rex::vnc { class VncClient; }
+namespace rex::emu { class GrpcDisplay; }
 
 namespace rex::gui {
 
@@ -14,6 +15,7 @@ public:
     explicit DisplayWidget(QWidget* parent = nullptr);
 
     void setVncClient(rex::vnc::VncClient* vnc);
+    void setGrpcDisplay(rex::emu::GrpcDisplay* grpc);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -29,6 +31,7 @@ private:
     QPoint mapToGuest(const QPoint& widgetPos) const;
 
     rex::vnc::VncClient* vnc_ = nullptr;
+    rex::emu::GrpcDisplay* grpc_ = nullptr;
     QImage current_frame_;
 };
 

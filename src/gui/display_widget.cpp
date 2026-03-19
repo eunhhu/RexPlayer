@@ -1,5 +1,6 @@
 #include "display_widget.h"
 #include "../vnc/vnc_client.h"
+#include "../emu/grpc_display.h"
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -22,7 +23,20 @@ void DisplayWidget::setVncClient(rex::vnc::VncClient* vnc) {
     }
 }
 
+void DisplayWidget::setGrpcDisplay(rex::emu::GrpcDisplay* grpc) {
+    grpc_ = grpc;
+    if (grpc) {
+        connect(grpc, &rex::emu::GrpcDisplay::frameReady,
+                this, &DisplayWidget::onFrameReady);
+    }
+}
+
 void DisplayWidget::onFrameReady() {
+    if (grpc_) {
+        current_frame_ = grpc_->currentFrame();
+        update();
+        return;
+    }
     if (vnc_) {
         current_frame_ = vnc_->currentFrame();
         update();
@@ -67,7 +81,9 @@ void DisplayWidget::paintEvent(QPaintEvent*) {
 }
 
 void DisplayWidget::keyPressEvent(QKeyEvent* event) {
-    if (!vnc_ || event->isAutoRepeat()) return;
+    if (event->isAutoRepeat()) return;
+    if (grpc_) { grpc_->sendKey(event->key(), true); return; }
+    if (!vnc_) return;
     uint32_t keysym = event->key();
     if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
         keysym = (event->modifiers() & Qt::ShiftModifier)
@@ -89,7 +105,9 @@ void DisplayWidget::keyPressEvent(QKeyEvent* event) {
 }
 
 void DisplayWidget::keyReleaseEvent(QKeyEvent* event) {
-    if (!vnc_ || event->isAutoRepeat()) return;
+    if (event->isAutoRepeat()) return;
+    if (grpc_) { grpc_->sendKey(event->key(), false); return; }
+    if (!vnc_) return;
     uint32_t keysym = event->key();
     if (keysym >= Qt::Key_A && keysym <= Qt::Key_Z) {
         keysym = (event->modifiers() & Qt::ShiftModifier)
@@ -111,6 +129,11 @@ void DisplayWidget::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void DisplayWidget::mousePressEvent(QMouseEvent* event) {
+    if (grpc_) {
+        QPoint g = mapToGuest(event->pos());
+        grpc_->sendTouch(g.x(), g.y(), 0, true);
+        return;
+    }
     if (!vnc_) return;
     QPoint guest = mapToGuest(event->pos());
     uint8_t buttons = 0;
@@ -121,6 +144,11 @@ void DisplayWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void DisplayWidget::mouseMoveEvent(QMouseEvent* event) {
+    if (grpc_ && (event->buttons() & Qt::LeftButton)) {
+        QPoint g = mapToGuest(event->pos());
+        grpc_->sendTouch(g.x(), g.y(), 0, true);
+        return;
+    }
     if (!vnc_) return;
     QPoint guest = mapToGuest(event->pos());
     uint8_t buttons = 0;
@@ -131,9 +159,13 @@ void DisplayWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void DisplayWidget::mouseReleaseEvent(QMouseEvent* event) {
+    if (grpc_) {
+        QPoint g = mapToGuest(event->pos());
+        grpc_->sendTouch(g.x(), g.y(), 0, false);
+        return;
+    }
     if (!vnc_) return;
     QPoint guest = mapToGuest(event->pos());
-    Q_UNUSED(event);
     vnc_->sendPointerEvent(guest.x(), guest.y(), 0);
 }
 
