@@ -78,7 +78,8 @@ QStringList QemuConfig::toCommandLine() const {
     args << "-device" << "virtio-gpu-pci";
     args << "-device" << "virtio-keyboard-pci";
     args << "-device" << "virtio-tablet-pci";
-    args << "-device" << "intel-hda" << "-device" << "hda-duplex";
+    args << "-audiodev" << "none,id=snd0";
+    args << "-device" << "intel-hda" << "-device" << "hda-duplex,audiodev=snd0";
 
     QString netdev = "user,id=net0";
     if (adb_host_port > 0) {
