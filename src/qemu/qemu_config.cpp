@@ -80,8 +80,11 @@ QStringList QemuConfig::toCommandLine() const {
     args << "-device" << "virtio-tablet-pci";
     args << "-device" << "intel-hda" << "-device" << "hda-duplex";
 
-    QString netdev = QString("user,id=net0,hostfwd=tcp::%1-:%2")
-                         .arg(adb_host_port).arg(adb_guest_port);
+    QString netdev = "user,id=net0";
+    if (adb_host_port > 0) {
+        netdev += QString(",hostfwd=tcp::%1-:%2")
+                      .arg(adb_host_port).arg(adb_guest_port);
+    }
     if (frida_host_port > 0) {
         netdev += QString(",hostfwd=tcp::%1-:%2")
                       .arg(frida_host_port).arg(frida_guest_port);

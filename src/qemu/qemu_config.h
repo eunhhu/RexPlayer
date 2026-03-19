@@ -29,7 +29,7 @@ struct QemuConfig {
     DisplayBackend display_backend = DisplayBackend::Auto;
     uint16_t vnc_port = 5900;  // VNC display :0 = port 5900
 
-    uint16_t adb_host_port = 5555;
+    uint16_t adb_host_port = 0;  // 0 = no port forwarding, set to 5555 to enable
     uint16_t adb_guest_port = 5555;
 
     enum class Accelerator { Auto, HVF, KVM, WHPX, TCG };
