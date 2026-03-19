@@ -58,10 +58,21 @@ int main(int argc, char* argv[]) {
     auto* qemu = new rex::qemu::QemuProcess();
     auto* vnc = new rex::vnc::VncClient();
 
-    // Connect VNC after QEMU QMP is ready
-    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [vnc, &qemu_config]() {
-        fprintf(stderr, "main: QMP ready, connecting VNC on port %d...\n", qemu_config.vnc_port);
-        vnc->connectToHost("127.0.0.1", qemu_config.vnc_port);
+    // After QMP ready, query actual VNC port (may differ due to ,to=99 auto-select)
+    QObject::connect(qemu, &rex::qemu::QemuProcess::qmpReady, [vnc, qemu]() {
+        fprintf(stderr, "main: QMP ready, querying VNC port...\n");
+        qemu->qmp()->execute("query-vnc", {}, [vnc](bool ok, const QJsonObject& resp) {
+            if (!ok) {
+                fprintf(stderr, "main: query-vnc failed, trying default port 5900\n");
+                vnc->connectToHost("127.0.0.1", 5900);
+                return;
+            }
+            auto ret = resp["return"].toObject();
+            QString host = ret["host"].toString("127.0.0.1");
+            int port = ret["service"].toString("5900").toInt();
+            fprintf(stderr, "main: VNC at %s:%d\n", host.toUtf8().constData(), port);
+            vnc->connectToHost(host, static_cast<quint16>(port));
+        });
     });
 
     rex::gui::MainWindow window;

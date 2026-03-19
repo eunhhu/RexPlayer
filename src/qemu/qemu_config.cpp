@@ -61,8 +61,8 @@ QStringList QemuConfig::toCommandLine() const {
                     .arg(spice_socket_path);
 #endif
     } else {
-        // VNC on localhost
-        args << "-vnc" << QString("127.0.0.1:%1").arg(vnc_port - 5900);
+        // VNC on localhost — use ,to=99 to auto-find available port in range :0 to :99
+        args << "-vnc" << QString("127.0.0.1:%1,to=99").arg(vnc_port - 5900);
     }
 
     if (!qmp_socket_path.isEmpty()) {
