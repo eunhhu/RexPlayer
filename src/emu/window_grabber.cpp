@@ -1,9 +1,14 @@
 #include "window_grabber.h"
 #include <QLayout>
+#include <QDateTime>
 #include <cstdio>
 
 #ifdef Q_OS_MACOS
 #include <CoreGraphics/CoreGraphics.h>
+// CGWindowListCreateImage is obsoleted in macOS 15 SDK but still works at runtime.
+// We suppress the error by declaring it ourselves if the SDK marks it unavailable.
+extern "C" CGImageRef CGWindowListCreateImage(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption)
+    __attribute__((availability(macos, introduced=10.5)));
 #endif
 
 namespace rex::emu {
@@ -30,12 +35,16 @@ void WindowGrabber::startGrabbing(QWidget* container, const QString& avdName) {
 
 void WindowGrabber::release() {
     search_timer_->stop();
-    if (embedded_widget_) {
-        embedded_widget_->setParent(nullptr);
-        embedded_widget_ = nullptr;
+    if (capture_timer_) {
+        capture_timer_->stop();
     }
-    foreign_window_ = nullptr;
     embedded_ = false;
+    captured_wid_ = 0;
+}
+
+QImage WindowGrabber::currentFrame() const {
+    QMutexLocker lock(&frame_mutex_);
+    return frame_.copy();
 }
 
 void WindowGrabber::searchForWindow() {
@@ -47,26 +56,76 @@ void WindowGrabber::searchForWindow() {
     }
 
     uint64_t wid = findEmulatorWindowId(avd_name_);
-    if (wid == 0) return; // not found yet, keep trying
+    if (wid == 0) return;
 
     search_timer_->stop();
     fprintf(stderr, "grabber: found emulator window ID %llu\n", wid);
     emit windowFound(wid);
 
-    // Store the window ID for CGWindowListCreateImage capture
-    // (cross-process window embedding crashes on macOS)
     captured_wid_ = wid;
     embedded_ = true;
-    fprintf(stderr, "grabber: will capture emulator window ID %llu at 60fps\n", wid);
+    fprintf(stderr, "grabber: capturing window at 60fps via CGWindowListCreateImage\n");
 
-    // Start frame capture timer — GPU-accelerated window capture via CoreGraphics
     capture_timer_ = new QTimer(this);
     capture_timer_->setInterval(16); // ~60fps
-    connect(capture_timer_, &QTimer::timeout, this, [this]() {
-        captureFrame();
-    });
+    connect(capture_timer_, &QTimer::timeout, this, &WindowGrabber::captureFrame);
     capture_timer_->start();
     emit embedded();
+}
+
+void WindowGrabber::captureFrame() {
+#ifdef Q_OS_MACOS
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wavailability"
+    if (captured_wid_ == 0) return;
+
+    CGImageRef cgImage = CGWindowListCreateImage(
+        CGRectNull,
+        kCGWindowListOptionIncludingWindow,
+        static_cast<CGWindowID>(captured_wid_),
+        kCGWindowImageBoundsIgnoreFraming | kCGWindowImageNominalResolution);
+
+    if (!cgImage) return;
+
+    size_t w = CGImageGetWidth(cgImage);
+    size_t h = CGImageGetHeight(cgImage);
+
+    if (w == 0 || h == 0) {
+        CGImageRelease(cgImage);
+        return;
+    }
+
+    // Convert CGImage to QImage
+    QImage img(static_cast<int>(w), static_cast<int>(h), QImage::Format_ARGB32);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(
+        img.bits(), w, h, 8, img.bytesPerLine(),
+        colorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+
+    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), cgImage);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(colorSpace);
+    CGImageRelease(cgImage);
+
+    {
+        QMutexLocker lock(&frame_mutex_);
+        frame_ = img;
+    }
+
+    // FPS tracking
+    frame_count_++;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (last_fps_time_ == 0) {
+        last_fps_time_ = now;
+    } else if (now - last_fps_time_ >= 1000) {
+        fps_ = frame_count_ * 1000.0 / (now - last_fps_time_);
+        frame_count_ = 0;
+        last_fps_time_ = now;
+    }
+
+    emit frameReady();
+#endif
 }
 
 uint64_t WindowGrabber::findEmulatorWindowId(const QString& avdName) {
@@ -81,7 +140,6 @@ uint64_t WindowGrabber::findEmulatorWindowId(const QString& avdName) {
     for (CFIndex i = 0; i < count; i++) {
         auto dict = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(windowList, i));
 
-        // Get owner name
         auto ownerRef = static_cast<CFStringRef>(
             CFDictionaryGetValue(dict, kCGWindowOwnerName));
         if (!ownerRef) continue;
@@ -90,7 +148,6 @@ uint64_t WindowGrabber::findEmulatorWindowId(const QString& avdName) {
         CFStringGetCString(ownerRef, owner, sizeof(owner), kCFStringEncodingUTF8);
         if (strstr(owner, "qemu") == nullptr) continue;
 
-        // Get window title
         auto titleRef = static_cast<CFStringRef>(
             CFDictionaryGetValue(dict, kCGWindowName));
         if (!titleRef) continue;
@@ -98,7 +155,6 @@ uint64_t WindowGrabber::findEmulatorWindowId(const QString& avdName) {
         char title[512] = {};
         CFStringGetCString(titleRef, title, sizeof(title), kCFStringEncodingUTF8);
 
-        // Match "Android Emulator - <avdName>:*"
         if (strstr(title, "Android Emulator") &&
             (avdName.isEmpty() || strstr(title, avdName.toUtf8().constData()))) {
             auto numRef = static_cast<CFNumberRef>(
@@ -114,19 +170,6 @@ uint64_t WindowGrabber::findEmulatorWindowId(const QString& avdName) {
 
     CFRelease(windowList);
     return result;
-
-#elif defined(Q_OS_LINUX)
-    // X11: use XQueryTree + XFetchName to find emulator window
-    // TODO: implement for Linux
-    Q_UNUSED(avdName);
-    return 0;
-
-#elif defined(Q_OS_WIN)
-    // Win32: EnumWindows + GetWindowText
-    // TODO: implement for Windows
-    Q_UNUSED(avdName);
-    return 0;
-
 #else
     Q_UNUSED(avdName);
     return 0;

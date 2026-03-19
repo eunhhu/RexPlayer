@@ -4,6 +4,8 @@
 #include <QWidget>
 #include <QWindow>
 #include <QTimer>
+#include <QMutex>
+#include <QImage>
 #include <QString>
 #include <cstdint>
 
