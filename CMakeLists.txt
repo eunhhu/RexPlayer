@@ -33,7 +33,38 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# --- Libraries will be added by subsequent tasks ---
+# --- gRPC + Protobuf ---
+find_package(Protobuf CONFIG REQUIRED)
+find_package(gRPC CONFIG QUIET)
+if(NOT gRPC_FOUND)
+    # Fallback: find via pkg-config
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GRPC IMPORTED_TARGET grpc++ grpc)
+    endif()
+endif()
+
+# --- Emulator gRPC client ---
+add_library(rex_emu STATIC
+    src/emu/emulator_process.cpp
+    src/emu/grpc_display.cpp
+    src/emu/generated/emulator_controller.pb.cc
+    src/emu/generated/emulator_controller.grpc.pb.cc
+)
+target_include_directories(rex_emu PUBLIC src/emu src/emu/generated)
+if(gRPC_FOUND)
+    target_link_libraries(rex_emu PUBLIC
+        Qt6::Core Qt6::Gui Qt6::Network
+        gRPC::grpc++ protobuf::libprotobuf
+    )
+elseif(GRPC_FOUND)
+    target_link_libraries(rex_emu PUBLIC
+        Qt6::Core Qt6::Gui Qt6::Network
+        PkgConfig::GRPC protobuf::libprotobuf
+    )
+else()
+    message(WARNING "gRPC not found — emulator gRPC client will not link")
+    target_link_libraries(rex_emu PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
+endif()
 
 # --- QEMU process management ---
 add_library(rex_qemu STATIC
@@ -76,7 +107,7 @@ add_executable(rexplayer
     src/gui/frida_panel.cpp
 )
 target_link_libraries(rexplayer PRIVATE
-    rex_qemu rex_vnc
+    rex_emu rex_qemu rex_vnc
     Qt6::Widgets Qt6::Gui Qt6::Core
 )
 if(REX_HAS_SPICE)
