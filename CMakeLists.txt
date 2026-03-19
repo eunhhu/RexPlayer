@@ -70,6 +70,51 @@ if(APPLE)
     target_link_libraries(rex_emu PUBLIC "-framework CoreGraphics")
 endif()
 
+# --- HAL (Hypervisor Abstraction Layer) ---
+add_library(rex_hal STATIC
+    src/hal/hypervisor_factory.cpp
+)
+target_include_directories(rex_hal PUBLIC src/hal/include)
+if(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+        target_sources(rex_hal PRIVATE src/hal/hvf/hvf_arm64_adapter.cpp)
+        target_compile_definitions(rex_hal PRIVATE REX_HAS_HVF REX_HVF_ARM64)
+    else()
+        target_sources(rex_hal PRIVATE src/hal/hvf/hvf_hypervisor.cpp)
+        target_compile_definitions(rex_hal PRIVATE REX_HAS_HVF)
+    endif()
+    target_link_libraries(rex_hal PRIVATE "-framework Hypervisor")
+elseif(UNIX)
+    target_sources(rex_hal PRIVATE src/hal/kvm/kvm_hypervisor.cpp)
+    target_compile_definitions(rex_hal PRIVATE REX_HAS_KVM)
+elseif(WIN32)
+    target_sources(rex_hal PRIVATE src/hal/whpx/whpx_hypervisor.cpp)
+    target_compile_definitions(rex_hal PRIVATE REX_HAS_WHPX)
+endif()
+
+# --- VMM Core ---
+add_library(rex_vmm STATIC
+    src/vmm/vm.cpp
+    src/vmm/memory_manager.cpp
+    src/vmm/device_manager.cpp
+    src/vmm/boot_arm64.cpp
+    src/vmm/boot_x86.cpp
+    src/vmm/snapshot.cpp
+    src/vmm/embedded_kernel.cpp
+)
+target_include_directories(rex_vmm PUBLIC src/vmm/include src/vmm)
+target_link_libraries(rex_vmm PUBLIC rex_hal)
+
+# --- Legacy devices ---
+add_library(rex_devices STATIC
+    src/devices/legacy/uart_16550.cpp
+    src/devices/legacy/i8042.cpp
+    src/devices/legacy/rtc.cpp
+    src/devices/legacy/pci_host.cpp
+)
+target_include_directories(rex_devices PUBLIC src/devices)
+target_link_libraries(rex_devices PUBLIC rex_vmm)
+
 # --- QEMU process management ---
 add_library(rex_qemu STATIC
     src/qemu/qmp_client.cpp
@@ -111,6 +156,7 @@ add_executable(rexplayer
     src/gui/frida_panel.cpp
 )
 target_link_libraries(rexplayer PRIVATE
+    rex_vmm rex_hal rex_devices
     rex_emu rex_qemu rex_vnc
     Qt6::Widgets Qt6::Gui Qt6::Core
 )
