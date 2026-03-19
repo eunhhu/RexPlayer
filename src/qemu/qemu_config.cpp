@@ -1,5 +1,6 @@
 #include "qemu_config.h"
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QUuid>
@@ -27,27 +28,44 @@ QStringList QemuConfig::toCommandLine() const {
         default: break;
     }
 
-    if (!system_image_path.isEmpty()) {
+    // Boot mode
+    if (boot_mode == BootMode::Bios && !bios_path.isEmpty()) {
+        args << "-bios" << bios_path;
+    } else {
+        if (!kernel_path.isEmpty())
+            args << "-kernel" << kernel_path;
+        if (!initrd_path.isEmpty())
+            args << "-initrd" << initrd_path;
+        if (!cmdline.isEmpty())
+            args << "-append" << cmdline;
+    }
+
+    // Disk images — Android uses separate partitions as virtio-blk devices
+    // Order matters: vda=system, vdb=vendor, vdc=userdata, vdd=cache
+    auto addDrive = [&args](const QString& path, const QString& id) {
+        if (path.isEmpty()) return;
+        QString fmt = path.endsWith(".qcow2") ? "qcow2" : "raw";
+        args << "-drive" << QString("index=0,if=none,id=%1,file=%2,format=%3").arg(id, path, fmt);
+        args << "-device" << QString("virtio-blk-pci,drive=%1").arg(id);
+    };
+
+    if (!vendor_image_path.isEmpty()) {
+        // Multi-disk Android mode
+        addDrive(system_image_path, "system");
+        addDrive(vendor_image_path, "vendor");
+        addDrive(userdata_image_path, "userdata");
+        addDrive(cache_image_path, "cache");
+    } else if (!system_image_path.isEmpty()) {
+        // Single disk mode (legacy or simple boot)
         args << "-drive"
              << QString("file=%1,format=raw,if=virtio").arg(system_image_path);
     }
 
-    if (!kernel_path.isEmpty()) {
-        args << "-kernel" << kernel_path;
-    }
-    if (!initrd_path.isEmpty()) {
-        args << "-initrd" << initrd_path;
-    }
-    if (!cmdline.isEmpty()) {
-        args << "-append" << cmdline;
-    }
-
     args << "-display" << "none";
 
-    // Display backend: VNC (universally supported) or SPICE (optional)
+    // Display backend
     DisplayBackend db = display_backend;
     if (db == DisplayBackend::Auto) {
-        // Auto-detect: try SPICE socket path presence as hint, otherwise VNC
         db = DisplayBackend::VNC;
     }
 
@@ -61,7 +79,6 @@ QStringList QemuConfig::toCommandLine() const {
                     .arg(spice_socket_path);
 #endif
     } else {
-        // VNC on localhost — use ,to=99 to auto-find available port in range :0 to :99
         args << "-vnc" << QString("127.0.0.1:%1,to=99").arg(vnc_port - 5900);
     }
 
@@ -75,12 +92,14 @@ QStringList QemuConfig::toCommandLine() const {
 #endif
     }
 
+    // Devices
     args << "-device" << "virtio-gpu-pci";
     args << "-device" << "virtio-keyboard-pci";
     args << "-device" << "virtio-tablet-pci";
     args << "-audiodev" << "none,id=snd0";
     args << "-device" << "intel-hda" << "-device" << "hda-duplex,audiodev=snd0";
 
+    // Network with port forwarding
     QString netdev = "user,id=net0";
     if (adb_host_port > 0) {
         netdev += QString(",hostfwd=tcp::%1-:%2")
@@ -98,6 +117,19 @@ QStringList QemuConfig::toCommandLine() const {
     args << extra_args;
 
     return args;
+}
+
+QString QemuConfig::androidCmdline() {
+    return "console=ttyAMA0 earlycon=pl011,mmio32,0x09000000 "
+           "androidboot.hardware=rex "
+           "androidboot.selinux=permissive "
+           "androidboot.boot_devices=a003e00.virtio "
+           "androidboot.hardware.hwcomposer.display_finder_mode=drm "
+           "loop.max_part=7 "
+           "printk.devkmsg=on "
+           "firmware_class.path=/vendor/firmware "
+           "ro.adb.secure=0 "
+           "ro.debuggable=1";
 }
 
 QString QemuConfig::findQemuBinary() {
