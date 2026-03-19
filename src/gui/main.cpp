@@ -7,6 +7,13 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QStyleFactory>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
+#include <QMessageBox>
 #include <cstdio>
 
 int main(int argc, char* argv[]) {
@@ -74,6 +81,77 @@ int main(int argc, char* argv[]) {
     if (parser.isSet(bios_opt)) {
         qemu_config.bios_path = parser.value(bios_opt);
         qemu_config.boot_mode = rex::qemu::QemuConfig::BootMode::Bios;
+    }
+
+    // Auto-detect images from ~/.rexplayer/images/ if nothing specified
+    bool has_any_image = !qemu_config.kernel_path.isEmpty()
+                      || !qemu_config.system_image_path.isEmpty()
+                      || !qemu_config.bios_path.isEmpty();
+
+    if (!has_any_image) {
+        QString images_dir = QDir::homePath() + "/.rexplayer/images";
+        QString images_json = images_dir + "/images.json";
+
+        if (QFile::exists(images_json)) {
+            // Load from images.json
+            QFile f(images_json);
+            if (f.open(QIODevice::ReadOnly)) {
+                auto doc = QJsonDocument::fromJson(f.readAll());
+                auto obj = doc.object();
+                auto trySet = [](QString& field, const QJsonObject& o, const char* key) {
+                    QString val = o[key].toString();
+                    if (!val.isEmpty() && QFile::exists(val)) field = val;
+                };
+                trySet(qemu_config.kernel_path, obj, "kernel");
+                trySet(qemu_config.initrd_path, obj, "initrd");
+                trySet(qemu_config.system_image_path, obj, "system");
+                trySet(qemu_config.userdata_image_path, obj, "userdata");
+                trySet(qemu_config.cache_image_path, obj, "cache");
+                fprintf(stderr, "main: loaded image config from %s\n",
+                        images_json.toUtf8().constData());
+            }
+        } else {
+            // No images found — offer to download
+            auto result = QMessageBox::question(nullptr, "RexPlayer",
+                "Android images not found.\n\n"
+                "Run the setup script to download them?\n"
+                "(~2GB download, requires internet)\n\n"
+                "Script: scripts/fetch_android.sh",
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (result == QMessageBox::Yes) {
+                // Find fetch_android.sh relative to executable
+                QString script = QApplication::applicationDirPath() + "/../scripts/fetch_android.sh";
+                if (!QFile::exists(script))
+                    script = QApplication::applicationDirPath() + "/../../scripts/fetch_android.sh";
+
+                if (QFile::exists(script)) {
+                    fprintf(stderr, "main: running %s\n", script.toUtf8().constData());
+                    QProcess::execute("bash", {script});
+                    // Reload images.json after script completes
+                    if (QFile::exists(images_json)) {
+                        QFile f2(images_json);
+                        if (f2.open(QIODevice::ReadOnly)) {
+                            auto doc = QJsonDocument::fromJson(f2.readAll());
+                            auto obj = doc.object();
+                            auto trySet = [](QString& field, const QJsonObject& o, const char* key) {
+                                QString val = o[key].toString();
+                                if (!val.isEmpty() && QFile::exists(val)) field = val;
+                            };
+                            trySet(qemu_config.kernel_path, obj, "kernel");
+                            trySet(qemu_config.initrd_path, obj, "initrd");
+                            trySet(qemu_config.system_image_path, obj, "system");
+                            trySet(qemu_config.userdata_image_path, obj, "userdata");
+                            trySet(qemu_config.cache_image_path, obj, "cache");
+                        }
+                    }
+                } else {
+                    QMessageBox::warning(nullptr, "RexPlayer",
+                        "Setup script not found.\n\n"
+                        "Run manually:\n  ./scripts/fetch_android.sh");
+                }
+            }
+        }
     }
 
     // Set kernel cmdline
