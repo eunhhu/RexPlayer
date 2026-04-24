@@ -69,9 +69,15 @@ pub struct QemuConfig {
     pub extra_args: Vec<String>,
 }
 
-fn default_machine() -> String { "virt,gic-version=3".to_string() }
-fn default_cpu() -> String { "cortex-a76".to_string() }
-fn default_accelerator() -> String { "auto".to_string() }
+fn default_machine() -> String {
+    "virt,gic-version=3".to_string()
+}
+fn default_cpu() -> String {
+    "cortex-a76".to_string()
+}
+fn default_accelerator() -> String {
+    "auto".to_string()
+}
 
 impl Default for QemuConfig {
     fn default() -> Self {
@@ -85,13 +91,27 @@ impl Default for QemuConfig {
     }
 }
 
-fn default_vcpus() -> u32 { 2 }
-fn default_ram() -> u64 { 2048 }
-fn default_width() -> u32 { 1080 }
-fn default_height() -> u32 { 1920 }
-fn default_dpi() -> u32 { 320 }
-fn default_true() -> bool { true }
-fn default_frida_port() -> u16 { 27042 }
+fn default_vcpus() -> u32 {
+    2
+}
+fn default_ram() -> u64 {
+    2048
+}
+fn default_width() -> u32 {
+    1080
+}
+fn default_height() -> u32 {
+    1920
+}
+fn default_dpi() -> u32 {
+    320
+}
+fn default_true() -> bool {
+    true
+}
+fn default_frida_port() -> u16 {
+    27042
+}
 
 impl Default for RexConfig {
     fn default() -> Self {
@@ -267,7 +287,10 @@ accelerator = "hvf"
 extra_args = ["-monitor", "stdio"]
 "#;
         let config: RexConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.qemu.binary_path, "/opt/homebrew/bin/qemu-system-aarch64");
+        assert_eq!(
+            config.qemu.binary_path,
+            "/opt/homebrew/bin/qemu-system-aarch64"
+        );
         assert_eq!(config.qemu.cpu, "max");
         assert_eq!(config.qemu.accelerator, "hvf");
         assert_eq!(config.qemu.extra_args, vec!["-monitor", "stdio"]);

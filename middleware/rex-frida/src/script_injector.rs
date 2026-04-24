@@ -189,8 +189,8 @@ impl ScriptInjector {
 
     /// Load a script from a file
     pub fn load_file(&mut self, path: &Path) -> ScriptResult<u64> {
-        let source = std::fs::read_to_string(path)
-            .map_err(|e| ScriptError::LoadFailed(e.to_string()))?;
+        let source =
+            std::fs::read_to_string(path).map_err(|e| ScriptError::LoadFailed(e.to_string()))?;
 
         let name = path
             .file_stem()
@@ -251,13 +251,16 @@ impl ScriptInjector {
             return Err(ScriptError::NotConnected);
         }
 
-        let script = self.scripts.get_mut(&script_id)
+        let script = self
+            .scripts
+            .get_mut(&script_id)
             .ok_or_else(|| ScriptError::NotFound(format!("script {}", script_id)))?;
 
         if script.state != ScriptState::Loaded && script.state != ScriptState::Stopped {
-            return Err(ScriptError::InjectionFailed(
-                format!("script {} is in state {:?}, expected Loaded or Stopped", script_id, script.state)
-            ));
+            return Err(ScriptError::InjectionFailed(format!(
+                "script {} is in state {:?}, expected Loaded or Stopped",
+                script_id, script.state
+            )));
         }
 
         script.target = config.target;
@@ -298,7 +301,9 @@ impl ScriptInjector {
 
     /// Detach a script from its target process
     pub fn detach(&mut self, script_id: u64) -> ScriptResult<()> {
-        let script = self.scripts.get_mut(&script_id)
+        let script = self
+            .scripts
+            .get_mut(&script_id)
             .ok_or_else(|| ScriptError::NotFound(format!("script {}", script_id)))?;
 
         script.state = ScriptState::Stopped;
@@ -312,7 +317,8 @@ impl ScriptInjector {
                 self.detach(script_id)?;
             }
         }
-        self.scripts.remove(&script_id)
+        self.scripts
+            .remove(&script_id)
             .ok_or_else(|| ScriptError::NotFound(format!("script {}", script_id)))?;
         Ok(())
     }
@@ -339,14 +345,16 @@ impl ScriptInjector {
 
     /// List running scripts
     pub fn running_scripts(&self) -> Vec<&ScriptInstance> {
-        self.scripts.values()
+        self.scripts
+            .values()
             .filter(|s| s.state == ScriptState::Running)
             .collect()
     }
 
     /// Get the number of active scripts
     pub fn active_count(&self) -> usize {
-        self.scripts.values()
+        self.scripts
+            .values()
             .filter(|s| s.state == ScriptState::Running || s.state == ScriptState::Paused)
             .count()
     }
@@ -467,11 +475,13 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        let id = injector.quick_inject(
-            "enum_modules",
-            ScriptInjector::snippet_enumerate_modules(),
-            TargetProcess::Pid(1234),
-        ).unwrap();
+        let id = injector
+            .quick_inject(
+                "enum_modules",
+                ScriptInjector::snippet_enumerate_modules(),
+                TargetProcess::Pid(1234),
+            )
+            .unwrap();
 
         assert_eq!(injector.active_count(), 1);
         assert_eq!(injector.running_scripts().len(), 1);
@@ -485,7 +495,9 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        let id = injector.quick_inject("test", "1", TargetProcess::Pid(1)).unwrap();
+        let id = injector
+            .quick_inject("test", "1", TargetProcess::Pid(1))
+            .unwrap();
         injector.detach(id).unwrap();
 
         let script = injector.get_script(id).unwrap();
@@ -498,7 +510,9 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        let id = injector.quick_inject("test", "1", TargetProcess::Pid(1)).unwrap();
+        let id = injector
+            .quick_inject("test", "1", TargetProcess::Pid(1))
+            .unwrap();
         injector.remove(id).unwrap();
         assert!(injector.get_script(id).is_none());
     }
@@ -508,7 +522,9 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        let id = injector.quick_inject("test", "1", TargetProcess::Pid(1)).unwrap();
+        let id = injector
+            .quick_inject("test", "1", TargetProcess::Pid(1))
+            .unwrap();
         injector.deliver_message(id, r#"{"type":"log","payload":"hello"}"#.into());
 
         let script = injector.get_script(id).unwrap();
@@ -521,8 +537,12 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        injector.quick_inject("a", "1", TargetProcess::Pid(1)).unwrap();
-        injector.quick_inject("b", "2", TargetProcess::Pid(2)).unwrap();
+        injector
+            .quick_inject("a", "1", TargetProcess::Pid(1))
+            .unwrap();
+        injector
+            .quick_inject("b", "2", TargetProcess::Pid(2))
+            .unwrap();
         assert_eq!(injector.active_count(), 2);
 
         injector.set_connected(false);
@@ -539,8 +559,7 @@ mod tests {
 
     #[test]
     fn test_java_trace_snippet() {
-        let snippet = ScriptInjector::snippet_trace_java_method(
-            "android.app.Activity", "onCreate");
+        let snippet = ScriptInjector::snippet_trace_java_method("android.app.Activity", "onCreate");
         assert!(snippet.contains("Java.perform"));
         assert!(snippet.contains("android.app.Activity"));
         assert!(snippet.contains("onCreate"));
@@ -572,7 +591,10 @@ mod tests {
     fn test_target_display() {
         assert_eq!(TargetProcess::Pid(42).to_string(), "PID:42");
         assert_eq!(TargetProcess::Name("app".into()).to_string(), "name:app");
-        assert_eq!(TargetProcess::Package("com.x".into()).to_string(), "pkg:com.x");
+        assert_eq!(
+            TargetProcess::Package("com.x".into()).to_string(),
+            "pkg:com.x"
+        );
     }
 
     #[test]
@@ -580,7 +602,9 @@ mod tests {
         let mut injector = ScriptInjector::new();
         injector.set_connected(true);
 
-        let id = injector.quick_inject("test", "1", TargetProcess::Pid(1)).unwrap();
+        let id = injector
+            .quick_inject("test", "1", TargetProcess::Pid(1))
+            .unwrap();
         let result = injector.inject(id, InjectConfig::default());
         assert!(result.is_err());
     }
