@@ -34,7 +34,21 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # --- gRPC + Protobuf ---
-find_package(Protobuf CONFIG REQUIRED)
+# Protobuf: prefer CMake's CONFIG package (shipped by upstream / vcpkg / brew),
+# fall back to CMake's built-in FindProtobuf module so distro packages
+# (libprotobuf-dev) also work.
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+    find_package(Protobuf MODULE REQUIRED)
+endif()
+if(TARGET protobuf::libprotobuf)
+    # both modes expose this target
+else()
+    add_library(protobuf::libprotobuf INTERFACE IMPORTED)
+    target_link_libraries(protobuf::libprotobuf INTERFACE ${Protobuf_LIBRARIES})
+    target_include_directories(protobuf::libprotobuf INTERFACE ${Protobuf_INCLUDE_DIRS})
+endif()
+
 find_package(gRPC CONFIG QUIET)
 if(NOT gRPC_FOUND)
     # Fallback: find via pkg-config
