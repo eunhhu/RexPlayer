@@ -160,9 +160,9 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     connect(btn_box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(btn_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    // Apply just emits accepted for now; can be wired to save later
+    // Apply emits applyRequested so callers can save without closing.
     connect(btn_box->button(QDialogButtonBox::Apply), &QPushButton::clicked,
-            this, [this]() { /* TODO: apply without closing */ });
+            this, &SettingsDialog::applyRequested);
 
     // ---- Sidebar → page switching ------------------------------------------
     connect(sidebar_, &QListWidget::currentRowChanged,

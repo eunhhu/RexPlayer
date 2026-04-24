@@ -3,8 +3,8 @@
 //! Checks for new versions via GitHub releases API and provides
 //! download/install functionality for updating the application.
 
-use thiserror::Error;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum UpdateError {
@@ -36,7 +36,11 @@ pub struct Version {
 
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
@@ -77,15 +81,25 @@ impl Platform {
     /// Detect the current platform
     pub fn current() -> Self {
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        { Platform::LinuxX86_64 }
+        {
+            Platform::LinuxX86_64
+        }
         #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-        { Platform::LinuxArm64 }
+        {
+            Platform::LinuxArm64
+        }
         #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        { Platform::MacosX86_64 }
+        {
+            Platform::MacosX86_64
+        }
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        { Platform::MacosArm64 }
+        {
+            Platform::MacosArm64
+        }
         #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        { Platform::WindowsX86_64 }
+        {
+            Platform::WindowsX86_64
+        }
         #[cfg(not(any(
             all(target_os = "linux", target_arch = "x86_64"),
             all(target_os = "linux", target_arch = "aarch64"),
@@ -93,7 +107,9 @@ impl Platform {
             all(target_os = "macos", target_arch = "aarch64"),
             all(target_os = "windows", target_arch = "x86_64"),
         )))]
-        { Platform::LinuxX86_64 } // fallback
+        {
+            Platform::LinuxX86_64
+        } // fallback
     }
 
     pub fn asset_suffix(&self) -> &'static str {
@@ -171,7 +187,9 @@ impl UpdateManager {
 
     /// Check if an update is available (from cached result)
     pub fn update_available(&self) -> bool {
-        self.last_check.as_ref().is_some_and(|info| info.has_update())
+        self.last_check
+            .as_ref()
+            .is_some_and(|info| info.has_update())
     }
 
     /// Build the expected asset download URL
