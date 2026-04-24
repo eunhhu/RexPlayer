@@ -36,6 +36,14 @@ jobs:
       - name: Test C++
         run: ctest --test-dir build --output-on-failure
 
+      - name: Check Rust formatting
+        working-directory: middleware
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: middleware
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: Build and test Rust
         working-directory: middleware
         run: |

@@ -3,10 +3,10 @@
 //! Handles downloading, installing, and connecting to Frida Server
 //! running inside the Android guest via vsock.
 
-use thiserror::Error;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FridaError {
@@ -200,7 +200,8 @@ impl FridaManager {
 
     /// Get the expected server binary path
     pub fn server_binary_path(&self) -> PathBuf {
-        self.install_dir.join(format!("frida-server-{}", self.arch.as_str()))
+        self.install_dir
+            .join(format!("frida-server-{}", self.arch.as_str()))
     }
 
     /// Check if Frida server is installed locally
@@ -282,7 +283,10 @@ impl FridaManager {
         let mut info = HashMap::new();
         info.insert("state".into(), format!("{:?}", self.state));
         info.insert("arch".into(), self.arch.as_str().into());
-        info.insert("vsock_port".into(), self.bridge_config.guest_port.to_string());
+        info.insert(
+            "vsock_port".into(),
+            self.bridge_config.guest_port.to_string(),
+        );
         info.insert("host_port".into(), self.bridge_config.host_port.to_string());
         info.insert("auto_update".into(), self.auto_update.to_string());
         if let Some(v) = &self.version {
@@ -308,8 +312,7 @@ fn dirs_default() -> PathBuf {
     }
     #[cfg(target_os = "windows")]
     {
-        PathBuf::from(std::env::var("APPDATA").unwrap_or_default())
-            .join("RexPlayer/frida")
+        PathBuf::from(std::env::var("APPDATA").unwrap_or_default()).join("RexPlayer/frida")
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {

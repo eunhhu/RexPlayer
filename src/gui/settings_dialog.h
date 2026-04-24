@@ -12,6 +12,11 @@ class SettingsDialog : public QDialog {
 public:
     explicit SettingsDialog(QWidget* parent = nullptr);
 
+signals:
+    // Emitted when the user clicks the Apply button. Dialog stays open.
+    // Callers can connect this to whatever persistence layer they use.
+    void applyRequested();
+
 private:
     void createPages();
     QWidget* createGeneralPage();
