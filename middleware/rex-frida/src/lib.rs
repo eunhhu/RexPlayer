@@ -5,10 +5,10 @@
 //! - Automatic download and installation
 //! - vsock bridge (guest:27042 ↔ host:27042)
 
+pub mod anti_detection;
 pub mod manager;
 pub mod script_injector;
-pub mod anti_detection;
 
+pub use anti_detection::AntiDetection;
 pub use manager::FridaManager;
 pub use script_injector::ScriptInjector;
-pub use anti_detection::AntiDetection;

@@ -1,5 +1,10 @@
 # RexPlayer
 
+[![CI](https://github.com/eunhhu/RexPlayer/actions/workflows/ci.yml/badge.svg)](https://github.com/eunhhu/RexPlayer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Qt 6](https://img.shields.io/badge/Qt-6-41cd52)
+![Rust](https://img.shields.io/badge/Rust-stable-dea584)
+
 **A native Android player that runs QEMU as a subprocess with SPICE display and QMP control.**
 
 RexPlayer launches a QEMU process per VM, connects to it via SPICE for display/input, and controls it via the QMP JSON protocol. A Qt 6 GUI wraps the full lifecycle. Rust middleware crates handle configuration, Frida server management, and self-update.

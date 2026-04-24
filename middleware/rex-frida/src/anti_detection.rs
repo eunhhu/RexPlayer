@@ -88,7 +88,8 @@ impl DeviceProfile {
             product: "panther".into(),
             device: "panther".into(),
             hardware: "tensor".into(),
-            fingerprint: "google/panther/panther:13/TQ3A.230901.001/10750268:user/release-keys".into(),
+            fingerprint: "google/panther/panther:13/TQ3A.230901.001/10750268:user/release-keys"
+                .into(),
             board: "panther".into(),
             display: "TQ3A.230901.001".into(),
             description: "panther-user 13 TQ3A.230901.001 10750268 release-keys".into(),
@@ -108,7 +109,8 @@ impl DeviceProfile {
             product: "e1sxeea".into(),
             device: "e1s".into(),
             hardware: "exynos2400".into(),
-            fingerprint: "samsung/e1sxeea/e1s:14/UP1A.231005.007/S921BXXS1AXA2:user/release-keys".into(),
+            fingerprint: "samsung/e1sxeea/e1s:14/UP1A.231005.007/S921BXXS1AXA2:user/release-keys"
+                .into(),
             board: "exynos2400".into(),
             display: "UP1A.231005.007.S921BXXS1AXA2".into(),
             description: "e1sxeea-user 14 UP1A.231005.007 S921BXXS1AXA2 release-keys".into(),
@@ -193,7 +195,7 @@ impl AntiDetection {
         enabled.insert(BypassCategory::Frida, true);
         enabled.insert(BypassCategory::Debugger, true);
         enabled.insert(BypassCategory::SslPinning, false); // opt-in
-        enabled.insert(BypassCategory::Integrity, false);  // opt-in
+        enabled.insert(BypassCategory::Integrity, false); // opt-in
 
         let scripts = Self::builtin_scripts();
 
@@ -226,7 +228,8 @@ impl AntiDetection {
 
     /// Get all scripts for enabled categories
     pub fn active_scripts(&self) -> Vec<&BypassScript> {
-        self.scripts.iter()
+        self.scripts
+            .iter()
             .filter(|s| self.is_enabled(s.category))
             .collect()
     }
@@ -247,7 +250,10 @@ impl AntiDetection {
 
         // Then category scripts
         for script in self.active_scripts() {
-            parts.push(format!("\n// --- {} ({:?}) ---\n", script.name, script.category));
+            parts.push(format!(
+                "\n// --- {} ({:?}) ---\n",
+                script.name, script.category
+            ));
             parts.push(script.source.clone());
         }
 
@@ -651,7 +657,11 @@ mod tests {
     fn test_builtin_scripts_have_source() {
         let ad = AntiDetection::new();
         for script in ad.all_scripts() {
-            assert!(!script.source.is_empty(), "Script {} has empty source", script.name);
+            assert!(
+                !script.source.is_empty(),
+                "Script {} has empty source",
+                script.name
+            );
             assert!(!script.name.is_empty());
             assert!(!script.description.is_empty());
         }
