@@ -114,6 +114,8 @@ Explore the detailed architecture and technical specifications in [`/docs`](./do
 - **[Stealth & Security Guide (`docs/STEALTH_AND_SECURITY.md`)](./docs/STEALTH_AND_SECURITY.md)**: In-depth guide on anti-cheat evasion, KernelSU integration, and Frida stealth hooks.
 - **[Native Stealth & Zygisk Evasion Strategy (`docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md`)](./docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md)**: Strategies for natively baking in Magisk, Zygisk, Shamiko, and HMA evasion at the Kernel, Bionic libc, and AOSP layers.
 - **[Commercial Anti-Cheat In-Depth Analysis (`docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md`)](./docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md)**: Analysis of LIAPP, XIGNCODE3 Mobile, Tencent ACE, and AppIron detection vectors and substrate-level defenses.
+- **[Hardware, Audio, Media & Multi-Instance Pipeline (`docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md`)](./docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md)**: Low-latency PipeWire/WASAPI audio, hardware video decoding, 16KB memory page compatibility, and per-instance proxy routing.
+- **[Comprehensive Anti-Detection Matrix (`docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md`)](./docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md)**: 50+ detection vector checklist covering GPU strings, CPU topology, storage block devices, sensor jitter, and Play Integrity.
 - **[Development Roadmap (`docs/ROADMAP.md`)](./docs/ROADMAP.md)**: Phase-by-phase implementation plan and milestones.
 
 ---
