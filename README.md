@@ -112,6 +112,8 @@ Explore the detailed architecture and technical specifications in [`/docs`](./do
 - **[Architecture v2 Specification (`docs/ARCHITECTURE_V2.md`)](./docs/ARCHITECTURE_V2.md)**: Complete system design, lifecycle, IPC protocols, and container orchestrator.
 - **[Input & Graphics Pipeline (`docs/INPUT_AND_GRAPHICS_PIPELINE.md`)](./docs/INPUT_AND_GRAPHICS_PIPELINE.md)**: Zero-copy rendering, Direct3D 12/Mesa bridges, and `/dev/uinput` multi-touch translation.
 - **[Stealth & Security Guide (`docs/STEALTH_AND_SECURITY.md`)](./docs/STEALTH_AND_SECURITY.md)**: In-depth guide on anti-cheat evasion, KernelSU integration, and Frida stealth hooks.
+- **[Native Stealth & Zygisk Evasion Strategy (`docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md`)](./docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md)**: Strategies for natively baking in Magisk, Zygisk, Shamiko, and HMA evasion at the Kernel, Bionic libc, and AOSP layers.
+- **[Commercial Anti-Cheat In-Depth Analysis (`docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md`)](./docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md)**: Analysis of LIAPP, XIGNCODE3 Mobile, Tencent ACE, and AppIron detection vectors and substrate-level defenses.
 - **[Development Roadmap (`docs/ROADMAP.md`)](./docs/ROADMAP.md)**: Phase-by-phase implementation plan and milestones.
 
 ---
