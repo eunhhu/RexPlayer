@@ -1,0 +1,21 @@
+CREATED node=/dev/input/event0 from=sysfs
+DEVICE name=RexPlayer Virtual Multi-Touch Proof sysname=input0 node=/dev/input/event0
+WAIT pre_emit_ms=5000
+EVENT type=1 code=330 value=1
+EVENT type=3 code=57 value=42
+EVENT type=3 code=53 value=100
+EVENT type=3 code=54 value=200
+EVENT type=3 code=0 value=100
+EVENT type=3 code=1 value=200
+EVENT type=0 code=0 value=0
+EVENT type=3 code=53 value=400
+EVENT type=3 code=54 value=500
+EVENT type=3 code=0 value=400
+EVENT type=3 code=1 value=500
+EVENT type=0 code=0 value=0
+EVENT type=3 code=57 value=-1
+EVENT type=1 code=330 value=0
+EVENT type=0 code=0 value=0
+SUMMARY events=15 expected=15 syn_reports=3 sequence=1
+RESULT PASS
+WAIT hold_ms=8000
