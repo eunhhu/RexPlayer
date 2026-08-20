@@ -1,0 +1,8 @@
+[package]
+name = "rex-input-proof"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+evdev = "0.13"

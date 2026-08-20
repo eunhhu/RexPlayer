@@ -1,0 +1,42 @@
+VERDICT	CHECK	EVIDENCE
+SKIP	qemu_flag	ro.kernel.qemu unavailable
+FAIL	hardware	ro.hardware=redroid
+FAIL	boot_hardware	ro.boot.hardware=redroid
+FAIL	product_model	ro.product.model=redroid14_arm64_only
+FAIL	product_device	ro.product.device=redroid_arm64_only
+FAIL	product_name	ro.product.name=redroid_arm64_only
+FAIL	manufacturer	ro.product.manufacturer=redroid
+FAIL	brand	ro.product.brand=redroid
+FAIL	fingerprint	ro.build.fingerprint=redroid/redroid_arm64_only/redroid_arm64_only:14/UD2A.240505.001.W1/eng.frank.20240527.152423:userdebug/test-keys
+FAIL	build_type	ro.build.type=userdebug expected=user
+FAIL	build_tags	ro.build.tags=test-keys expected=release-keys
+FAIL	ro_debuggable	ro.debuggable=1 expected=0
+PASS	ro_secure	ro.secure=1
+FAIL	adb_secure	ro.adb.secure=0 expected=1
+FAIL	verified_boot	ro.boot.verifiedbootstate= expected=green
+FAIL	flash_locked	ro.boot.flash.locked= expected=1
+FAIL	vbmeta_state	ro.boot.vbmeta.device_state= expected=locked
+FAIL	selinux_enforcing	ro.boot.selinux= expected=enforcing
+SKIP	proc_cmdline	/proc/cmdline unreadable/absent
+FAIL	proc_mountinfo	markers=docker,overlay,redroid,
+PASS	proc_cgroup	/proc/self/cgroup clean
+PASS	proc_cpuinfo	/proc/cpuinfo clean
+PASS	qemu_devices	absent
+PASS	goldfish_sysfs	absent
+FAIL	su_binary	/system/xbin/su;/system/xbin/su;
+FAIL	root_artifacts	/data/adb;
+PASS	frida_process	no name match
+PASS	frida_ports	27042/27043 absent
+SKIP	frida_maps	/proc/*/maps unreadable/absent
+FAIL	adb_enabled	persist.sys.usb.config=adb
+FAIL	graphics_props	angle pastel
+FAIL	telephony	sim= operator=
+FAIL	serial_number	absent/unknown
+PASS	adb_shell_privilege	uid=2000(shell) gid=2000(shell) groups=2000(shell),1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),1078(ext_data_rw),1079(ext_obb_rw),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats),3009(readproc),3011(uhid),3012(readtracefs)
+INFO	kernel	Linux localhost 5.15.0-187-generic #197-Ubuntu SMP Fri Jul 17 18:26:50 UTC 2026 aarch64 Toybox
+INFO	page_size	4096
+INFO	sdk	34
+INFO	release	14
+INFO	security_patch	2024-05-05
+INFO	density	Physical density: 320;
+INFO	size	Physical size: 720x1280;
