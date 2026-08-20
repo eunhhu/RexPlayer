@@ -1,0 +1,77 @@
+name: Runtime proof checks
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - ".gitattributes"
+      - "docs/PACKAGING_AND_RELEASE_STRATEGY.md"
+      - "docs/ROADMAP.md"
+      - "docs/VERIFICATION_2026-08-20.md"
+      - "proof/**"
+      - ".github/workflows/runtime-proof.yml"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - ".gitattributes"
+      - "docs/PACKAGING_AND_RELEASE_STRATEGY.md"
+      - "docs/ROADMAP.md"
+      - "docs/VERIFICATION_2026-08-20.md"
+      - "proof/**"
+      - ".github/workflows/runtime-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate shell syntax
+        run: |
+          for script in \
+            proof/input/build_and_run.sh \
+            proof/input/run_android_container_probe.sh \
+            proof/stealth/run_matrix.sh \
+            proof/windows-wsl/build_kernel.sh \
+            proof/windows-wsl/cleanup_android_host.sh \
+            proof/windows-wsl/preflight.sh \
+            proof/windows-wsl/prepare_android_host.sh \
+            proof/windows-wsl/run_android_e2e.sh \
+            proof/windows-wsl/run_redroid.sh; do
+            bash -n "$script"
+          done
+          sh -n proof/stealth/android_detection_matrix.sh
+
+      - name: Compile C producers and BinderFS helper
+        run: |
+          gcc -O2 -Wall -Wextra -Werror -std=c11 \
+            proof/input/rex_uinput_mt.c -o /tmp/rex_uinput_mt
+          gcc -O2 -Wall -Wextra -Werror -std=c11 \
+            proof/windows-wsl/create_binder_devices.c -o /tmp/rex_create_binder_devices
+
+      - name: Install Rust quality components
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+
+      - name: Check Rust producer
+        working-directory: proof/input-rust
+        run: |
+          cargo +stable fmt --check
+          cargo +stable clippy --locked --all-targets -- -D warnings
+          cargo +stable build --locked --release
+
+      - name: Validate evidence and manifest
+        run: |
+          python3 proof/validate_evidence.py
+          sha256sum -c proof/evidence/SHA256SUMS.txt
+
+      - name: Validate manifest with PowerShell
+        shell: pwsh
+        run: |
+          ./proof/windows-wsl/verify_evidence.ps1
+          ./proof/windows-wsl/test_verify_evidence.ps1

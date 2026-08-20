@@ -1,0 +1,19 @@
+# Runtime evidence is hashed byte-for-byte. Keep deterministic LF checkouts on every host.
+* text=auto
+.gitattributes text eol=lf
+.gitignore text eol=lf
+Cargo.lock text eol=lf
+
+*.c text eol=lf
+*.h text eol=lf
+*.log text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.py text eol=lf
+*.rs text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.tsv text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

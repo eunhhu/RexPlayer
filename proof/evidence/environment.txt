@@ -1,0 +1,17 @@
+CAPTURED_AT=2026-08-20T10:59:59+00:00
+KERNEL=Linux 5.15.0-187-generic #197-Ubuntu SMP Fri Jul 17 18:26:50 UTC 2026 aarch64
+ARCH=aarch64
+PAGE_SIZE=4096
+BINDER_MODULE=binder_linux          225280  83
+ASHMEM_MODULE=ashmem_linux           24576  77
+BINDERFS=binder rw,relatime,max=1048576
+DOCKER=Docker version 29.1.3, build 29.1.3-0ubuntu3~22.04.2
+IMAGE=arch=arm64 digest=redroid/redroid@sha256:0a611199ba2e0b5d60af39b3327a517f6407231f4352114ed3bd3cbfe2be69aa id=sha256:0a611199ba2e0b5d60af39b3327a517f6407231f4352114ed3bd3cbfe2be69aa
+CONTAINER=status=running oom=false image=sha256:0a611199ba2e0b5d60af39b3327a517f6407231f4352114ed3bd3cbfe2be69aa
+ANDROID_BOOT=1
+ANDROID_RELEASE=14
+ANDROID_SDK=34
+ANDROID_ABI=arm64-v8a
+ANDROID_FINGERPRINT=redroid/redroid_arm64_only/redroid_arm64_only:14/UD2A.240505.001.W1/eng.frank.20240527.152423:userdebug/test-keys
+ADB_STATE=device
+CORE_PROCESSES=system 107 1 surfaceflinger;shell 139 1 adbd;root 160 1 zygote64;system 226 160 system_server;

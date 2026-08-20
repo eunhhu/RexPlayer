@@ -1,0 +1,86 @@
+Input Reader State (sanitized proof-device excerpt)
+
+  Device 2: RexPlayer Virtual Multi-Touch Proof
+    EventHub Devices: [ 1 ]
+    Generation: 7
+    IsExternal: true
+    AssociatedDisplayPort: <none>
+    AssociatedDisplayUniqueId: <none>
+    HasMic:     false
+    Sources: TOUCHSCREEN
+    KeyboardType: 0
+    ControllerNum: 0
+    Motion Ranges:
+      X: source=TOUCHSCREEN, min=0.000, max=719.333, flat=0.000, fuzz=0.000, resolution=0.667
+      Y: source=TOUCHSCREEN, min=0.000, max=1279.333, flat=0.000, fuzz=0.000, resolution=0.667
+      PRESSURE: source=TOUCHSCREEN, min=0.000, max=1.000, flat=0.000, fuzz=0.000, resolution=0.000
+    Touch Input Mapper (mode - DIRECT):
+      Parameters:
+        GestureMode: MULTI_TOUCH
+        DeviceType: TOUCH_SCREEN
+        AssociatedDisplay: hasAssociatedDisplay=true, isExternal=true, displayId=''
+        OrientationAware: true
+        Orientation: Rotation0
+        UsiVersion: <not set>
+        EnableForInactiveViewport: false
+      Raw Touch Axes:
+        X: min=0, max=1079, flat=0, fuzz=0, resolution=1
+        Y: min=0, max=1919, flat=0, fuzz=0, resolution=1
+        Pressure: unknown range
+        TouchMajor: unknown range
+        TouchMinor: unknown range
+        ToolMajor: unknown range
+        ToolMinor: unknown range
+        Orientation: unknown range
+        Distance: unknown range
+        TiltX: unknown range
+        TiltY: unknown range
+        TrackingId: min=0, max=65535, flat=0, fuzz=0, resolution=1
+        Slot: min=0, max=9, flat=0, fuzz=0, resolution=1
+      Calibration:
+        touch.size.calibration: NONE
+        touch.pressure.calibration: none
+        touch.orientation.calibration: none
+        touch.distance.calibration: none
+      Affine Transformation:
+        X scale: 1.000
+        X ymix: 0.000
+        X offset: 0.000
+        Y xmix: 0.000
+        Y scale: 1.000
+        Y offset: 0.000
+      Viewport INTERNAL: displayId=0, uniqueId=local:0, port=0, orientation=0, logicalFrame=[0, 0, 720, 1280], physicalFrame=[0, 0, 720, 1280], deviceSize=[720, 1280], isActive=[1]
+      DisplayBounds: 720x1280
+      PhysicalFrameInRotatedDisplay: Rect{0, 0, 720, 1280}
+      InputDeviceOrientation: 0
+      Translation and Scaling Factors:
+        RawToDisplay Transform: (ROT_0) (SCALE )
+            0.6667  0.0000  0.0000
+            0.0000  0.6667  0.0000
+            0.0000  0.0000  1.0000
+        RawRotation Transform: (ROT_0) (IDENTITY)
+        OrientedXPrecision: 1.500
+        OrientedYPrecision: 1.500
+        GeometricScale: 0.667
+        PressureScale: 0.000
+        SizeScale: 0.000
+        OrientationScale: 0.000
+        DistanceScale: 0.000
+        HaveTilt: false
+        TiltXCenter: 0.000
+        TiltXScale: 0.000
+        TiltYCenter: 0.000
+        TiltYScale: 0.000
+      Last Raw Button State: 0x00000000
+      Last Raw Touch: pointerCount=0
+      Last Cooked Button State: 0x00000000
+      Last Cooked Touch: pointerCount=0
+      Stylus Fusion:
+        ExternalStylusConnected: false
+        Fused External Stylus Pointer ID: <not set>
+        External Stylus Data Timeout: 9223372036854775807
+         External Stylus Buttons Applied: 0x00000000      External Stylus State:
+        When: 0
+        Pressure: <not set>
+        Button State: 0x00000000
+        Tool Type: 0
