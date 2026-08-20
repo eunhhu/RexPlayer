@@ -61,7 +61,7 @@ SPICE (Simple Protocol for Independent Computing Environments) was designed for 
 | :--- | :--- | :--- |
 | **Severe Frame Stuttering** | SPICE socket serialization and double frame copy | **Zero-Copy Direct Rendering** via WSLg Direct3D 12 and Linux Mesa DRI3/DMA-BUF |
 | **High Idle Resource Usage** | Full QEMU VM emulation (>2GB RAM) | **Container-Native Execution** (LXC/Waydroid) sharing host kernel (<500MB RAM) |
-| **Sluggish UI & Heavy Build** | Heavy Qt 6 C++ dependency and CMake toolchain | **Lightweight Tauri v2 (Rust + Svelte/Tailwind)** with native window docking |
+| **Sluggish UI & Heavy Build** | Heavy Qt 6 C++ dependency and CMake toolchain | **Pure Native GPUI (Rust + Direct GPU Shaders)** with zero-copy texture viewport and transparent HUD |
 | **Complex Multi-threaded Sync** | Bridging GLib (SPICE) and Qt event loops | **Direct Native Input Bridge** (`/dev/uinput` via async Rust channels) |
 | **Detectable Security Hooks** | Standard file-based Frida injection | **KernelSU + Covert Frida** over abstract Unix Domain Sockets |
 

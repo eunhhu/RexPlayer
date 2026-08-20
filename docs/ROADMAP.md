@@ -7,7 +7,7 @@ This roadmap outlines the phased development strategy for **RexPlayer v2**. Each
 ## 🗺️ High-Level Phase Overview
 
 ```
-[ Phase 0: Substrate & Kernel PoC ] ──▶ [ Phase 1: Input & Container Bridge ] ──▶ [ Phase 2: Tauri UI & Overlay ]
+[ Phase 0: Substrate & Kernel PoC ] ──▶ [ Phase 1: Input & Container Bridge ] ──▶ [ Phase 2: GPUI Host Shell & HUD ]
                                                                                                │
 [ Phase 4: CI/CD & Automated Distribution ] ◀── [ Phase 3: Stealth & Frida Analysis Studio ] ◄─┘
 ```
@@ -42,17 +42,19 @@ This roadmap outlines the phased development strategy for **RexPlayer v2**. Each
 
 ---
 
-## 📌 Phase 2: Tauri v2 UI & Docking Shell (Weeks 5–6)
+## 📌 Phase 2: GPUI Native Host Shell & Direct GPU HUD (Weeks 5–6)
 
-**Goal:** Build the sleek, modern Cyber-Glassmorphism frontend using Tauri v2, Svelte 5, and TailwindCSS.
+**Goal:** Build the ultra-lightweight, 120Hz/240Hz GPU-accelerated desktop frontend and transparent HUD using GPUI (Pure Rust).
 
-- [ ] **Tauri v2 Shell (`rex-gui`):**
-  - Modern, responsive desktop UI with dark theme, glassmorphism blur effects, and smooth animations.
+- [ ] **GPUI Native Shell (`rex-gui`):**
+  - High-performance desktop UI written 100% in Rust using GPUI (direct Metal/Vulkan/Direct3D 12 rendering, <30MB RAM footprint).
   - Process lifecycle manager (Launch, Pause, Restart, Kill Android session).
-- [ ] **Window Docking Engine (`rex-window-dock`):**
-  - Win32 API (`SetWinEventHook`) / Wayland subsurface tracking to anchor Tauri sidebar controls seamlessly to the Android render viewport.
-- [ ] **Visual Keymapper & Transparent Overlay:**
-  - Drag-and-drop visual keymap editor overlaid on top of the live game screen.
+- [ ] **Zero-Copy Viewport Compositing (`rex-window-dock`):**
+  - Ingest Android render surface via direct GPU texture handles (WSLg D3D12 shared resource, Wayland DMA-BUF, macOS `IOSurface`).
+  - Seamlessly dock sidebars, floating palettes, and game controls to the viewport bounds.
+- [ ] **Visual Keymapper & Hardware-Accelerated Transparent HUD:**
+  - Zero-latency transparent overlay rendered directly over the game viewport via custom GPUI quad shaders.
+  - Visual touch-point animations, keybind highlights, and FPS aim crosshairs.
   - Save, export, and load per-game keymap profile presets (`.toml`).
 
 ---
@@ -64,8 +66,8 @@ This roadmap outlines the phased development strategy for **RexPlayer v2**. Each
 - [ ] **Stealth Kernel Hooks:**
   - Kernel-level `TracerPid` zeroing and anti-ptrace bypass in `fs/proc/array.c`.
   - Spoof hardware build properties and eliminate emulator device tree artifacts.
-- [ ] **Frida Studio (Monaco Editor):**
-  - Embed Monaco editor into Tauri with TypeScript/JavaScript syntax highlighting and autocomplete for Frida APIs.
+- [ ] **Frida Studio (Native High-Speed Code Editor):**
+  - High-performance code editor built with GPUI and Tree-sitter for TypeScript/JavaScript Frida scripts.
   - Covert Frida runner: randomized thread names, hidden ports, and abstract socket delivery.
   - One-click memory dumper for Unity IL2CPP games (`global-metadata.dat` + decrypted `.so` dump).
 
@@ -75,7 +77,7 @@ This roadmap outlines the phased development strategy for **RexPlayer v2**. Each
 
 **Goal:** Deliver a seamless one-click installer experience for Windows and Linux.
 
-- [ ] **Windows One-Click Installer (NSIS / Tauri Bundle):**
+- [ ] **Windows One-Click Installer (NSIS / Rust Bundle):**
   - Automatically provisions WSL2, installs the custom kernel, extracts the rootfs, and launches RexPlayer.
 - [ ] **Linux Package (AppImage / DEB / Arch PKGBUILD):**
   - Single-command setup for Linux distributions.

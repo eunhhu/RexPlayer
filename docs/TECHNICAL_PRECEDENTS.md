@@ -132,5 +132,5 @@ RexPlayer v2 synthesizes the best elements of these prior arts while systematica
 3. **Automate the Hard Parts:** Fully automate custom WSL2 kernel deployment (KernelSU + BinderFS) via Rust backend, removing all manual user friction.
 4. **Deliver the Gamer/Researcher Toolset:**
    - Ultra-fast `/dev/uinput` multi-touch & mouse lock translation.
-   - Modern, aesthetic Tauri v2 UI with dynamic window docking.
+   - Ultra-lightweight, aesthetic GPUI native UI with direct GPU-accelerated HUD overlay.
    - Undetectable KernelSU root + covert Frida script execution.
