@@ -8,13 +8,13 @@ RexPlayer v2 is a container-native Android execution environment and security an
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                               TAURI v2 FRONTEND                                  │
-│   • Svelte 5 / TailwindCSS / Lucide Icons / Framer-Motion (Cyber Glass Aesthetic)│
-│   • Floating Action Dock / Sidebar Controller                                    │
-│   • Visual Touch Keymapper & Mouse Sensitivity Tuner                             │
-│   • Monaco Code Studio (Frida JavaScript / TypeScript Editor & Console)          │
+│                      GPUI NATIVE FRONTEND & REX-HUD                              │
+│   • Pure Rust GPU-Accelerated UI Engine (Direct Metal / Vulkan / D3D12 Shaders)  │
+│   • Native Subsurface Viewport Embedding & Docking Controller                    │
+│   • Sub-millisecond Transparent Touch Keymap HUD & Sensitivity Visualizer        │
+│   • Zed-Grade Native Code Studio (Frida TypeScript Editor, Hex & Memory HUD)     │
 └────────────────────────────────────────┬─────────────────────────────────────────┘
-                                         │ (Tauri IPC / Rust Commands & Events)
+                                         │ (In-Process Rust Dispatch / GPUI AppContext & Async Channels)
 ┌────────────────────────────────────────▼─────────────────────────────────────────┐
 │                           REX-CORE (Rust Native Engine)                          │
 │                                                                                  │
@@ -123,25 +123,27 @@ To deliver competitive gaming responsiveness, RexPlayer intercepts host hardware
 
 ### 2.3 Window Docking & Display Compositor (`rex-window-dock`)
 
-RexPlayer bypasses slow frame capture by utilizing **Subsurface Window Docking**:
+RexPlayer bypasses slow frame capture by utilizing **GPUI Direct GPU Compositing & Subsurface Docking**:
 
-1. **Zero-Copy Display:**
-   - On Windows, WSLg renders the Waydroid surface directly via Direct3D 12 and presents it in a native Win32 window.
-   - On Linux, Waydroid renders directly onto the host Wayland/X11 surface via Mesa DRI3.
-2. **Tauri Docking Mechanics:**
-   - Tauri monitors the position and dimensions of the Android render window (`HWND` on Windows, `wl_surface` on Linux).
-   - The Tauri UI automatically docks its sidebars, controls, and floating toolbars to the edges of the Android window, creating the illusion of a unified, custom application.
-3. **Transparent Keymap Overlay:**
-   - When editing keymaps, Tauri opens a transparent, click-through overlay window positioned exactly over the Android canvas.
+1. **Zero-Copy Display Integration:**
+   - On Windows, WSLg renders the Waydroid surface directly via Direct3D 12 and presents it in a native Win32 window (or shared D3D12 texture handle).
+   - On Linux, Waydroid renders directly onto the host Wayland surface via Mesa DRI3/DMA-BUF buffers.
+   - On macOS/Darwin, graphics buffers map directly via `IOSurface` Metal textures.
+2. **GPUI Host Compositing:**
+   - GPUI manages the host application shell using pure GPU draw-calls (Metal / Vulkan / Direct3D 12) without any WebView (Chromium/WebKit) overhead.
+   - Sidebars, quick action docks, and floating inspection palettes render inside GPUI's native entity tree (`gpui::Entity`, `gpui::View`), guaranteeing 120Hz/240Hz ProMotion fluidity with zero CPU rasterization lag.
+3. **Transparent GPUI Keymap & Security HUD:**
+   - When editing keymaps or monitoring live game state, GPUI renders a transparent, hardware-accelerated HUD overlay layered directly over the Android viewport.
+   - Quad-batched shader passes allow live visual touch-point animations, keybind highlights, and FPS aim crosshairs to update at monitor refresh rate with <1ms frame pacing.
 
 ---
 
 ### 2.4 Security & Reverse Engineering Subsystem (`rex-security`)
 
 ```
-[ Tauri Security Studio (Monaco Editor) ]
+[ GPUI Security Studio (Native Rust High-Speed Code Editor & Terminal) ]
                    │
-                   ▼ (WebSocket / IPC Channel)
+                   ▼ (In-Process Async Tokio Channels / Zero-Copy Event Stream)
 [ Rex-Security Daemon (Host Rust Process) ]
                    │
                    ▼ (Abstract Unix Domain Socket - Stealth Channel)
