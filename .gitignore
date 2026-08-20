@@ -48,3 +48,17 @@ build-local-check/
 dist-check/
 .cache/
 .claude/worktrees/
+
+# Runtime proof build and raw capture artifacts
+proof/input/rex_uinput_mt
+proof/input/rex_uinput_mt.static
+proof/input/result.log
+proof/input/android-proof/
+proof/input-rust/target/
+proof/**/__pycache__/
+proof/**/*.py[co]
+proof/stealth/result.tsv
+proof/stealth/getprop.txt
+proof/stealth/dumpsys-*.txt
+proof/windows-wsl/.kernel-work/
+proof/windows-wsl/out/

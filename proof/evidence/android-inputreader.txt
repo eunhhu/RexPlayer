@@ -1,0 +1,172 @@
+INPUT MANAGER (dumpsys input)
+
+Input properties:
+  velocitytracker_strategy (flag value) = default
+
+Input Manager State:
+  Interactive: true
+  System UI Lights Out: false
+  Pointer Speed: 0
+  Pointer Acceleration: 3.000
+  Pointer Gestures Enabled: true
+  Show Touches: false
+  Pointer Capture: Disabled, seq=0
+
+Event Hub State:
+  BuiltInKeyboardId: -2
+  Devices:
+    1: RexPlayer Virtual Multi-Touch Proof
+      Classes: TOUCH | TOUCH_MT | EXTERNAL
+      Path: /dev/input/event1
+      Enabled: true
+      Descriptor: b59f8f40a7618cd895c332087d7cbc2b5e962749
+      Location:
+      ControllerNumber: 0
+      UniqueId:
+      Identifier: bus=0x0003, vendor=0x5258, product=0x0002, version=0x0002, bluetoothAddress=<not set>
+      KeyLayoutFile:
+      KeyCharacterMapFile:
+      ConfigurationFile:
+      VideoDevice: <none>
+      SysfsDevicePath: /sys/devices/virtual
+    -1: Virtual
+      Classes: KEYBOARD | ALPHAKEY | DPAD | VIRTUAL
+      Path: <virtual>
+      Enabled: true
+      Descriptor: a718a782d34bc767f4689c232d64d527998ea7fd
+      Location:
+      ControllerNumber: 0
+      UniqueId: <virtual>
+      Identifier: bus=0x0000, vendor=0x0000, product=0x0000, version=0x0000, bluetoothAddress=<not set>
+      KeyLayoutFile: /system/usr/keylayout/Generic.kl
+      KeyCharacterMapFile: /system/usr/keychars/Virtual.kcm
+      ConfigurationFile:
+      VideoDevice: <none>
+      SysfsDevicePath: <none>
+  Unattached video devices:
+    <none>
+
+Input Reader State (Nums of device: 2):
+  Device 2: RexPlayer Virtual Multi-Touch Proof
+    EventHub Devices: [ 1 ]
+    Generation: 7
+    IsExternal: true
+    AssociatedDisplayPort: <none>
+    AssociatedDisplayUniqueId: <none>
+    HasMic:     false
+    Sources: TOUCHSCREEN
+    KeyboardType: 0
+    ControllerNum: 0
+    Motion Ranges:
+      X: source=TOUCHSCREEN, min=0.000, max=719.333, flat=0.000, fuzz=0.000, resolution=0.667
+      Y: source=TOUCHSCREEN, min=0.000, max=1279.333, flat=0.000, fuzz=0.000, resolution=0.667
+      PRESSURE: source=TOUCHSCREEN, min=0.000, max=1.000, flat=0.000, fuzz=0.000, resolution=0.000
+    Touch Input Mapper (mode - DIRECT):
+      Parameters:
+        GestureMode: MULTI_TOUCH
+        DeviceType: TOUCH_SCREEN
+        AssociatedDisplay: hasAssociatedDisplay=true, isExternal=true, displayId=''
+        OrientationAware: true
+        Orientation: Rotation0
+        UsiVersion: <not set>
+        EnableForInactiveViewport: false
+      Raw Touch Axes:
+        X: min=0, max=1079, flat=0, fuzz=0, resolution=1
+        Y: min=0, max=1919, flat=0, fuzz=0, resolution=1
+        Pressure: unknown range
+        TouchMajor: unknown range
+        TouchMinor: unknown range
+        ToolMajor: unknown range
+        ToolMinor: unknown range
+        Orientation: unknown range
+        Distance: unknown range
+        TiltX: unknown range
+        TiltY: unknown range
+        TrackingId: min=0, max=65535, flat=0, fuzz=0, resolution=1
+        Slot: min=0, max=9, flat=0, fuzz=0, resolution=1
+      Calibration:
+        touch.size.calibration: NONE
+        touch.pressure.calibration: none
+        touch.orientation.calibration: none
+        touch.distance.calibration: none
+      Affine Transformation:
+        X scale: 1.000
+        X ymix: 0.000
+        X offset: 0.000
+        Y xmix: 0.000
+        Y scale: 1.000
+        Y offset: 0.000
+      Viewport INTERNAL: displayId=0, uniqueId=local:0, port=0, orientation=0, logicalFrame=[0, 0, 720, 1280], physicalFrame=[0, 0, 720, 1280], deviceSize=[720, 1280], isActive=[1]
+      DisplayBounds: 720x1280
+      PhysicalFrameInRotatedDisplay: Rect{0, 0, 720, 1280}
+      InputDeviceOrientation: 0
+      Translation and Scaling Factors:
+        RawToDisplay Transform: (ROT_0) (SCALE )
+            0.6667  0.0000  0.0000
+            0.0000  0.6667  0.0000
+            0.0000  0.0000  1.0000
+        RawRotation Transform: (ROT_0) (IDENTITY)
+        OrientedXPrecision: 1.500
+        OrientedYPrecision: 1.500
+        GeometricScale: 0.667
+        PressureScale: 0.000
+        SizeScale: 0.000
+        OrientationScale: 0.000
+        DistanceScale: 0.000
+        HaveTilt: false
+        TiltXCenter: 0.000
+        TiltXScale: 0.000
+        TiltYCenter: 0.000
+        TiltYScale: 0.000
+      Last Raw Button State: 0x00000000
+      Last Raw Touch: pointerCount=0
+      Last Cooked Button State: 0x00000000
+      Last Cooked Touch: pointerCount=0
+      Stylus Fusion:
+        ExternalStylusConnected: false
+        Fused External Stylus Pointer ID: <not set>
+        External Stylus Data Timeout: 9223372036854775807
+         External Stylus Buttons Applied: 0x00000000      External Stylus State:
+        When: 0
+        Pressure: <not set>
+        Button State: 0x00000000
+        Tool Type: 0
+  Device -1: Virtual
+    EventHub Devices: [ -1 ]
+    Generation: 3
+    IsExternal: false
+    AssociatedDisplayPort: <none>
+    AssociatedDisplayUniqueId: <none>
+    HasMic:     false
+    Sources: KEYBOARD | DPAD
+    KeyboardType: 2
+    ControllerNum: 0
+    Keyboard Input Mapper:
+      Parameters:
+        OrientationAware: false
+        HandlesKeyRepeat: false
+      KeyboardType: 2
+      Orientation: 0
+      KeyDowns: 0 keys currently down
+      MetaState: 0x0
+      KeyboardLayoutInfo: <not set>
+  Configuration:
+    ExcludedDeviceNames: []
+    VirtualKeyQuietTime: 0.0ms
+    PointerVelocityControlParameters: scale=1.000, lowThreshold=500.000, highThreshold=3000.000, acceleration=3.000
+    WheelVelocityControlParameters: scale=1.000, lowThreshold=15.000, highThreshold=50.000, acceleration=4.000
+    PointerGesture:
+      Enabled: true
+      QuietInterval: 100.0ms
+      DragMinSwitchSpeed: 50.0px/s
+      TapInterval: 150.0ms
+      TapDragInterval: 300.0ms
+      TapSlop: 20.0px
+      MultitouchSettleInterval: 100.0ms
+      MultitouchMinDistance: 15.0px
+      SwipeTransitionAngleCosine: 0.3
+      SwipeMaxWidthRatio: 0.2
+      MovementSpeedRatio: 0.8
+      ZoomSpeedRatio: 0.3
+      Viewports:
+        Viewport INTERNAL: displayId=0, uniqueId=local:0, port=0, orientation=0, logicalFrame=[0, 0, 720, 1280], physicalFrame=[0, 0, 720, 1280], deviceSize=[720, 1280], isActive=[1]
