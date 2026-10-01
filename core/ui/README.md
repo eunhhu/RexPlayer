@@ -1,65 +1,80 @@
-# RexPlayer native shell milestone
+# RexPlayer integrated native player
 
-A real Rust/GPUI 0.2.2 desktop shell for the existing `rex-launcher` library. It offers read-only Doctor and Status, a **per-request confirmation** before opening Waydroid's separate Android UI, asynchronous loading/error results, keyboard shortcuts, and owned request-process exit reporting.
+A real Rust/GPUI 0.2.2 window integrating `rex-media`, `rex-keymap`, `rex-input-linux`, and the existing `rex-launcher`. Linux x86_64/aarch64 only. This is a functional compatibility implementation with explicit supported-host validation still required, **not a production-ready or measured low-latency release**.
 
-This is an opt-in product milestone, not a production Android distribution. It does not embed Android frames, implement audio/app-visible input, provision Android, or verify rendering merely from a successful process spawn. Linux x86_64/aarch64 only; the underlying Waydroid runtime must already be independently provisioned and running as the same ordinary user on the same Wayland display.
+## Build and launch
 
-## Build
-
-Rust 1.88+ is declared; validation uses Rust 1.98.1. GPUI is pinned to the published `=0.2.2` crate, with its locked dependency graph. The GUI is behind `native-gpui` so hardware-independent library checks and the existing CLI remain independently usable.
+Rust 1.88+ is declared; current validation uses 1.98.1. Linux native linking needs `libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev`; a real window also needs fonts, a graphical session, and a compatible Vulkan driver. GPUI is pinned to `=0.2.2` with a checked-in lockfile.
 
 ```sh
-# Pure controller/process tests, no graphical session required.
 cargo test --manifest-path core/ui/Cargo.toml --locked
-cargo clippy --manifest-path core/ui/Cargo.toml --locked --all-targets -- -D warnings
-
-# Actual native code check and native binary.
-cargo check --manifest-path core/ui/Cargo.toml --locked --features native-gpui
 cargo clippy --manifest-path core/ui/Cargo.toml --locked --all-targets --features native-gpui -- -D warnings
+cargo test --manifest-path core/ui/Cargo.toml --locked --features native-gpui
 cargo build --manifest-path core/ui/Cargo.toml --locked --features native-gpui
 core/ui/target/debug/rex-player --help
-core/ui/target/debug/rex-player
 ```
 
-Use `--waydroid /absolute/path/to/trusted/waydroid` and `--timeout-ms 100..30000` when needed. Options are validated by `rex-launcher::Options`; this shell does not duplicate its argument parser or status parser. The executable must be trusted; it is not sandboxed. Runtime checks refuse privileged/root operation. There is no CLI option to pre-grant the UI confirmation.
+The `native-gpui` feature keeps headless controller/option/geometry tests independent of GPU/system linker dependencies. On a fresh machine, download dependencies before adding `--offline`. The shell rejects root or an unknown effective UID and refuses missing display variables before initializing GPUI. Merely setting DISPLAY/WAYLAND_DISPLAY does not prove a usable display.
 
-The native Linux build uses GPUI's Wayland and X11 backends and requires their system build/runtime dependencies (including fontconfig, xkbcommon, X11, Wayland, Vulkan). A working graphical session and compatible Vulkan device/driver are required to show the shell. X11 can render the shell, but Waydroid readiness still requires the matching Wayland environment. A missing display returns code 69 before GPUI initialization; existing but unusable display variables do not prove a usable display. Window-creation errors return 70. A successful application exit proves neither Android readiness nor rendered frames.
+### Selected-device video
 
-## Actions and consent
+Connect and authorize a device yourself first using official Android tooling. Copy its exact serial. RexPlayer never picks the first device, runs discovery/pairing/TCP setup, or changes connection settings.
 
-- Opening the shell performs one read-only Doctor check
-- Doctor establishes a point-in-time readiness result through `rex-launcher`
-- Status is read-only and never establishes UI readiness by itself
-- Opening the confirmation view runs no runtime command
-- Cancel/Escape dismisses that view without a command or stored permission
-- “Allow once & open” acknowledges exactly the upstream side effects described in `rex-launcher launch --allow-session-start`
-- After consent, the launcher checks the current runtime again and refuses stopped/frozen, foreign-user/display, malformed, unknown, or otherwise unconfirmed state
-- Every subsequent launch requires a fresh Doctor result and another confirmation
-- Busy actions and repeated launch/confirm clicks are rejected by the controller; at most one owned UI-request process can be active
+```sh
+# Compatibility fallback: bounded PNG screenshots, default maximum 5 polls/sec.
+rex-player --adb-serial YOUR_SERIAL
 
-Shortcuts: Ctrl-R Doctor, Ctrl-S Status, Ctrl-L open confirmation, Ctrl-Enter confirm the shown prompt, Escape cancel, Ctrl-Q close. Confirmation cannot be triggered by Ctrl-Enter when no prompt is shown. Native assistive-technology behavior remains unverified; keyboard shortcuts are not a claim of full accessibility support.
+# Continuous H.264 compatibility stream decoded by an existing trusted FFmpeg.
+rex-player --adb-serial YOUR_SERIAL --video-backend screenrecord --ffmpeg /usr/bin/ffmpeg
 
-## Asynchrony and process ownership
+# Optional executable/profile/timing configuration.
+rex-player --adb-serial YOUR_SERIAL --adb /usr/bin/adb --scrcpy /usr/bin/scrcpy \
+  --capture-interval-ms 200 --capture-timeout-ms 3000 \
+  --keymap core/keymap/examples/default.json
+```
 
-The GPUI render/event path does no backend process I/O, sleeps, or blocking waits. A dedicated worker uses a bounded, nonblocking request mailbox and the existing launcher's bounded diagnostic backend. The window polls ready events with a GPUI asynchronous timer and ignores stale completions. Diagnostic timeouts/output limits remain those of `rex-launcher`.
+Configuration alone does not capture, play audio, or create an input device. Choose **Start capture** in the window. The selected serial is displayed beside the controls. ADB may start its local server; ambient remote-server routing variables are removed and new-server mDNS autoconnection is disabled. A separately existing ADB server remains user-owned.
 
-The CLI's spawn-and-drop backend is intentionally **not** reused for UI spawning. The shell retains the `show-full-ui` child handle, polls its exit without blocking the UI, and reaps it. It distinguishes request-spawn success from later exit status and from real rendered frames. If waiting fails, additional UI requests remain blocked. Closing the view sends no stop signal: while the host process lives, the worker retains/reaps any existing request child; when the whole application exits, normal OS reparenting applies. It never kills a session/container, signals by process name/group, installs services, or manages Android lifecycle. The app does not claim termination-signal cleanup it cannot guarantee.
+- Screenshot mode executes `adb -s SERIAL exec-out screencap -p`, validates bounded PNG dimensions/bytes, and decodes to BGRA off the UI thread
+- Screenrecord mode executes the fixed Android H.264 command and supervises a local FFmpeg decoder; complete bounded PPM frames become BGRA. Screenrecord has device/version-dependent duration and rotation limits. EOF, failures and stalls stop capture and require an explicit restart
+- `--stream-stall-ms 500..30000` controls the stream's no-frame deadline, default 5000 ms
+- No CPU-copy backend claims zero-copy, target FPS, measured latency, A/V synchronization, or secure/DRM-content support
 
-A process that blocks indefinitely can keep the single-request guard active indefinitely. The user owns the runtime; this milestone deliberately does not infer permission to kill or recover it.
+A newest-frame-only mailbox prevents an accumulating image queue. GPUI receives an owned decoded buffer through `RenderImage`, displays it with centered aspect-preserving containment, and explicitly evicts replaced images from its texture cache. Frame/decoder evidence does not assert successful GPU presentation.
 
-## Verification
+### Explicit audio
 
-The checked-in headless tests exercise readiness, one-shot consent, cancel/repeat actions, stale completions, error recovery, read-only/launch separation, missing runtime, launch-without-consent, and reaping actual harmless subprocesses. They do not stand in for Android or hardware testing.
+**Start audio…** opens a separate confirmation explaining that scrcpy uploads/runs its temporary Android server and may mute the device speaker while forwarding device-output audio. Only confirmation starts the selected-device audio process. Microphone capture, video, clipboard autosync and remote control are disabled. A separately installed compatible official scrcpy and Android 11+ are needed. Process-running status never claims audible playback.
 
-See [VALIDATION.md](VALIDATION.md) for native compiler/linker results, the 22 passing tests, and the explicit sandbox restriction preventing native rendering. Rendering, Android launch, embedded graphics, audio, input, performance, signing/packaging/updates, and real hardware compatibility each require their own evidence. No mock or software-rendered shell can establish those runtime capabilities.
+**Stop audio** and **Stop player** request asynchronous cleanup. “Stopping” remains visible until owned-process cleanup completes. The app never sends global ADB/session/container stop commands. See `core/media/README.md` for subprocess ownership limits, including scrcpy's own helper processes and exceptional cleanup deadlines.
 
-## Primary API references
+### Explicit mapped input
 
-Implementation reviewed against the pinned published source, rather than moving-main API assumptions:
+The keymap is loaded and validated before the window opens, from a bounded regular JSON file. Opening a FIFO is nonblocking and rejected. Merely loading a profile creates no device.
 
-- [GPUI 0.2.2 hello-world example](https://docs.rs/crate/gpui/0.2.2/source/examples/hello_world.rs)
-- [GPUI 0.2.2 window-close example](https://docs.rs/crate/gpui/0.2.2/source/examples/on_window_close_quit.rs)
-- [GPUI 0.2.2 Context API](https://docs.rs/gpui/0.2.2/gpui/struct.Context.html)
-- [GPUI official site](https://gpui.rs/)
+**Enable mapped input…** is available only with a fresh frame and settled prior input cleanup. Confirmation warns that `/dev/uinput` creates a **host virtual touchscreen**, not a transport automatically bound to the chosen ADB serial. Existing guest routing must already be independently configured and verified. Otherwise input can affect the host desktop. The app never changes device permissions or guest routing.
 
-GPUI is Apache-2.0, independently licensed from RexPlayer. Shipping binaries needs a complete dependency/license review and notices. An upstream `proc-macro-error2` future-incompatibility notice is present under the validation toolchain; it is not an application warning or a failed current check.
+After explicit enable, the keymap worker owns device creation, input writes, and cleanup. GPUI forwards only this active window's events, with actual measured content bounds excluding letterboxing and decoded Android dimensions. Key repeats are ignored. Input is disabled on:
+
+- Escape/emergency release, explicit stop, opening a confirmation, or closing the window
+- Focus loss, resize/move, changed content bounds, or changed frame dimensions/orientation
+- Capture failure or no fresh decoded frame for two seconds
+- Queue overflow, translation/transport errors, keyboard-layout changes, or modifier changes
+
+Cleanup is requested out-of-band and pending source events are discarded. The prior worker remains owned until completion is observed; there is no automatic device recreation or re-enable. A shutdown deadline is reported as unverified cleanup, never successful release delivery.
+
+GPUI 0.2.2 provides logical keys whose release symbols can change with modifiers/layout. This frontend therefore **explicitly rejects profile bindings for Shift, Control, Alt and Escape** and disables mapped input when modifiers/layout change. Use unmodified keys. Unknown/mismatched releases with held keys trigger fail-closed cleanup; the core keymap's broader vocabulary does not imply native support for every modifier binding. Global input hooks, pointer locking, IME/scancode remapping, and accessibility behavior are not implemented or verified.
+
+### Optional Waydroid controls
+
+Doctor/Status and the separate-window launcher remain available and still reuse `rex-launcher`'s parser/policy. Without `--adb-serial`, opening the shell performs the original read-only Doctor check. With a serial, media can work independently of Waydroid installation; its optional Doctor is not an ADB capture gate.
+
+Every Waydroid UI request requires a new confirmation acknowledging the same session-start/unfreeze effects as `--allow-session-start`. Confirmation rechecks readiness. The shell retains/reaps owned UI-request processes and distinguishes spawn from later exit and rendered frames. It never intentionally stops Android when closed.
+
+Shortcuts: Escape release/cancel, Ctrl-Q close, Ctrl-R Doctor, Ctrl-S Status, Ctrl-L Waydroid launch prompt, Ctrl-Enter confirm that prompt. Audio/input permission cannot be supplied through CLI flags.
+
+## Validation and limitations
+
+See [VALIDATION.md](VALIDATION.md). The integrated native code compiles and links, and its startup/image conversion/profile loading/controller tests run without a display. The current cloud's AF_UNIX restriction prevents a native display server, so no actual native pixels, event dispatch, Android connection, speaker output, live uinput writes, FPS, latency, or guest routing have been verified here. No workaround bypasses that restriction.
+
+GPUI's primary pinned references: [hello-world](https://docs.rs/crate/gpui/0.2.2/source/examples/hello_world.rs), [Context](https://docs.rs/gpui/0.2.2/gpui/struct.Context.html), [image element](https://docs.rs/crate/gpui/0.2.2/source/src/elements/img.rs), and [official project](https://gpui.rs/). GPUI is Apache-2.0; packaging all dependencies requires the applicable licenses/notices. External ADB/scrcpy/FFmpeg remain separately provisioned trusted dependencies.

@@ -9,11 +9,18 @@ description = "Native GPUI shell for the fail-closed RexPlayer Waydroid launcher
 
 [features]
 default = []
-native-gpui = ["dep:gpui"]
+native-gpui = ["dep:gpui", "dep:image", "rex-keymap/linux-adapter"]
 
 [dependencies]
 rex-launcher = { path = "../launcher" }
+rex-media = { path = "../media" }
+rex-keymap = { path = "../keymap" }
+rex-input-core = { path = "../input" }
+image = { version = "=0.25.10", optional = true, default-features = false, features = ["png"] }
 gpui = { version = "=0.2.2", optional = true, default-features = false, features = ["wayland", "x11"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [[bin]]
 name = "rex-player"
