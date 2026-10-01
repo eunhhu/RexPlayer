@@ -37,6 +37,29 @@ The declared Rust 1.88 minimum has not been separately compiled; Rust 1.98.1 is 
 
 ## Still not verified
 
+### Follow-up: WSLg X11 close regression
+
+An actual Windows/Ubuntu WSLg host rendered the `6ba4182` release and resized
+its window successfully. Two independent `WM_DELETE_WINDOW` runs then exited
+101 with `RefCell already borrowed` in GPUI's X11 client. The window-close
+observer synchronously called `Platform::quit` while the X11 event handler
+still owned the client-state borrow.
+
+The fix queues quit with `App::spawn` and rechecks that no windows remain on
+the next foreground dispatch. `App::defer` is intentionally not used: its
+effects can flush before the platform callback returns. Pinned GPUI 0.2.2
+queues Linux foreground tasks as calloop idle callbacks. Cloud native tests,
+strict Clippy, and optimized linking pass; repeated real-host close retesting
+is still required before claiming this regression is resolved on WSLg.
+
+Regression gate: start the exact packaged binary on X11 without selecting an
+Android device; wait for its visible window, resize it, send the standard
+`WM_PROTOCOLS`/`WM_DELETE_WINDOW` event to that process's own window, and assert
+exit 0 within 10 seconds with no panic. Repeat in two new processes. Record
+the archive SHA256 and exit/log results. A timeout or forced termination is a
+failure, not a successful close. This gate does not validate Android workers,
+audio, input routing, or Wayland-native close behavior.
+
 - Native window rendering, keyboard/mouse dispatch or accessibility: NOT_RUN. The cloud rejects AF_UNIX socket creation with EPERM, so a display server cannot start. No alternate transport or security-setting workaround was attempted
 - Live ADB device capture, Waydroid launch, real Android orientation behavior, secure/DRM frames: NOT_RUN
 - Audible playback or A/V synchronization: NOT_RUN. scrcpy process startup alone cannot establish audio

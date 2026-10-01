@@ -762,9 +762,19 @@ pub fn run(options: UiOptions) {
             KeyBinding::new("ctrl-q", Quit, None),
         ]);
         cx.on_window_closed(|cx| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
+            // GPUI 0.2.2's X11 WM_DELETE_WINDOW handler holds its client-state
+            // RefCell borrow while invoking this observer. Even App::defer runs
+            // before that platform callback unwinds. Queue a foreground task so
+            // Platform::quit cannot reborrow the client until the next dispatch.
+            cx.spawn(async |cx| {
+                let _ = cx.update(|cx| {
+                    // Another window may have opened before this task runs.
+                    if cx.windows().is_empty() {
+                        cx.quit();
+                    }
+                });
+            })
+            .detach();
         })
         .detach();
         let bounds = Bounds::centered(None, size(px(1100.), px(920.)), cx);
