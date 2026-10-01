@@ -58,6 +58,8 @@ def main() -> None:
             'preview.json': (json.dumps({
                 'schema_version': 1, 'channel': 'unsigned-preview',
                 'os': platform.system(), 'architecture': platform.machine(),
+                'build_libc': list(platform.libc_ver()),
+                'portable_distro_compatibility_verified': False,
                 'includes_android_runtime': False, 'includes_native_gui': args.native_ui,
                 'native_ui_profile': 'release' if args.native_ui else None,
                 'native_ui_rendering_verified': False,
@@ -73,6 +75,7 @@ def main() -> None:
             subprocess.run([str(native_binary), '--help'], check=True, timeout=10)
             files['bin/rex-player'] = native_binary.read_bytes()
             files['docs/native-ui.md'] = (ROOT / 'core/ui/README.md').read_bytes()
+            files['docs/VALIDATION.md'] = (ROOT / 'core/ui/VALIDATION.md').read_bytes()
         usage = '# Unsigned Linux preview\n\nRun `./bin/rex-launcher --help` for the command-line entry point.\n'
         if args.native_ui:
             usage += 'Run `./bin/rex-player` inside a supported graphical Linux desktop for the native shell.\n'
