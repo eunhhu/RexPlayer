@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RexPlayer read-only capability report, schema 1.0",
+  "description": "Host inventory only. A valid report never establishes Android or production readiness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "inspector", "host", "checks", "summary", "runtime_gates", "limitations"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "inspector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "read_only"],
+      "properties": {
+        "name": {"const": "rexplayer-capabilities"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "read_only": {"const": true}
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture", "kernel_release", "os_version"],
+      "properties": {
+        "os": {"type": "string"},
+        "architecture": {"type": "string"},
+        "kernel_release": {"type": "string"},
+        "os_version": {"type": "string"}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "scope", "status", "detail", "evidence"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9_.]+$"},
+          "scope": {"const": "host_inventory"},
+          "status": {"$ref": "#/$defs/status"},
+          "detail": {"type": "string", "minLength": 1},
+          "evidence": {"type": "object"}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inspection_status", "status_counts", "runtime_verification", "production_readiness"],
+      "properties": {
+        "inspection_status": {"enum": ["completed", "unsupported_os"]},
+        "status_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "unavailable", "unknown", "not_applicable"],
+          "properties": {
+            "available": {"type": "integer", "minimum": 0},
+            "unavailable": {"type": "integer", "minimum": 0},
+            "unknown": {"type": "integer", "minimum": 0},
+            "not_applicable": {"type": "integer", "minimum": 0}
+          }
+        },
+        "runtime_verification": {"const": "not_performed"},
+        "production_readiness": {"const": "not_established"}
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status"],
+        "properties": {
+          "id": {"enum": ["android_boot", "android_app_input", "graphics_rendering", "audio", "lifecycle_recovery", "instance_isolation", "management_security", "performance", "install_update_rollback"]},
+          "status": {"const": "not_tested"}
+        }
+      }
+    },
+    "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "status": {"enum": ["available", "unavailable", "unknown", "not_applicable"]}
+  }
+}

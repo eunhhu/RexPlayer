@@ -1,0 +1,14 @@
+[package]
+name = "rex-launcher"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+publish = false
+description = "Unprivileged, fail-closed native Waydroid launcher entry point"
+
+[dependencies]
+
+[[bin]]
+name = "rex-launcher"
+path = "src/main.rs"
