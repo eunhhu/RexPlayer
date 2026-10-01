@@ -1,0 +1,29 @@
+[package]
+name = "rex-media"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+description = "Explicit-device bounded Android screenshot and audio compatibility backend"
+
+[features]
+default = []
+test-fixtures = []
+
+[dependencies]
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[[bin]]
+name = "rex-media-fixture"
+path = "tests/fixtures/child.rs"
+required-features = ["test-fixtures"]
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0

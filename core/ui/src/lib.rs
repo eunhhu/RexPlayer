@@ -5,6 +5,10 @@
 
 use rex_launcher::{Action, Report};
 
+pub mod input_gate;
+pub mod keyboard;
+pub mod options;
+pub mod viewport;
 pub mod worker;
 
 pub const LAUNCH_WARNING: &str = "Waydroid's show-full-ui may start or unfreeze your session if its state changes after the check. Confirming grants this permission for this request only (equivalent to --allow-session-start). Closing RexPlayer will not stop Android.";
