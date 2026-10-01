@@ -51,12 +51,16 @@ impl Backend for FakeBackend {
 }
 
 fn host() -> HostContext {
+    // PathBuf follows the test runner's path syntax, even for a mocked Linux host.
+    // Only absoluteness is under test here; no fixture directory is opened.
+    let runtime_dir = std::env::temp_dir();
+    assert!(runtime_dir.is_absolute());
     HostContext {
         os: "linux".into(),
         arch: "x86_64".into(),
         effective_uid: Some(1000),
         wayland_display: Some("wayland-0".into()),
-        runtime_dir: Some(PathBuf::from("/run/user/1000")),
+        runtime_dir: Some(runtime_dir),
     }
 }
 fn options(action: Action) -> Options {
