@@ -19,7 +19,7 @@ This roadmap separates completed feasibility evidence from unimplemented product
 
 **Goal:** turn the proof into a non-destructive, recoverable runtime transaction.
 
-- [ ] Implement a read-only Windows/Linux capability inspector.
+- [x] Implement a read-only Windows/Linux capability inspector (`runtime/`), with explicit unknown states and no runtime-readiness claim.
 - [ ] Define a signed runtime manifest covering host, kernel, rootfs, Android OCI digest, and schema compatibility.
 - [ ] Decide the production Windows isolation path; the proven `.wslconfig` kernel override affects all WSL2 distributions for the user.
 - [ ] Provision a dedicated runtime without modifying unrelated WSL distributions, Docker state, firewall policy, or user data.
@@ -31,6 +31,10 @@ This roadmap separates completed feasibility evidence from unimplemented product
 **Exit gate:** 100 consecutive lifecycle runs on disposable supported hosts with no leaked process, mount, network rule, or unrelated host-state modification.
 
 ## Phase 2 — Product input and control
+
+Source milestone: `core/input/` provides tested coordinate mapping/contact state, and
+`core/input-linux/` provides explicit uinput transport. Actual Android application
+delivery, device permissions, host capture and per-instance integration remain gates.
 
 **Goal:** move from synthetic proof events to safe user-controlled application input.
 
@@ -44,6 +48,11 @@ This roadmap separates completed feasibility evidence from unimplemented product
 **Exit gate:** a packaged test app confirms correct down/move/up delivery across the supported display matrix with bounded latency and zero stuck-contact failures.
 
 ## Phase 3 — Graphics, audio, and host UI
+
+Source milestone: `core/ui/` is a compiled native GPUI status/launch shell using
+`core/launcher/`, with asynchronous checks and one-shot launch acknowledgement.
+It opens Android in a separate Waydroid window; it does not embed or verify frames.
+Cloud window validation is blocked by denied AF_UNIX socket creation.
 
 **Goal:** prove a visible, usable Android session before claiming performance.
 
