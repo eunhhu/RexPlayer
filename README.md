@@ -28,7 +28,7 @@ RexPlayer investigates whether a small native host application can manage an And
 | **Linux substrate** | ARM64 Android booted in a 4 KiB KVM validation guest | Native distro packaging and hardware coverage are not established |
 | **Input** | Exact 15-event `/dev/uinput` sequence reached Android `getevent` and InputReader as `TOUCHSCREEN` | Raw path verified; application/UI delivery and latency remain open gates |
 | **Graphics/audio** | WSL `/dev/dxg` presence was recorded | Rendering, audio, frame pacing, and zero-copy claims are unverified |
-| **Host UI** | Native GPUI status/launch shell compiles; controller/startup tests pass | Visible window and embedded Android surface unverified; not benchmarked |
+| **Host UI** | Integrated GPUI media/input window compiles; 39 native-feature tests pass | Actual window/Android presentation unverified; not benchmarked |
 | **Security posture** | Defensive exposure collector reports `8 PASS / 23 FAIL / 3 SKIP` | Baseline is detectable; no bypass or undetectability claim |
 | **Resource usage** | No controlled benchmark | RAM, CPU, startup time, and multi-instance targets are unverified |
 
@@ -36,21 +36,39 @@ RexPlayer investigates whether a small native host application can manage an And
 
 ## Unprivileged v2 preview components
 
-The current work also includes a read-only host capability inspector (`runtime/`), a
-native Rust touch-state library (`core/input/`), a Linux uinput transport
-(`core/input-linux/`), an unprivileged Linux Waydroid launcher (`core/launcher/`), and a
-[GPUI status/launch shell](./core/ui/README.md). These are early components, not an
-integrated production player: the launcher requires an existing Waydroid setup;
-real device/application delivery and native-window rendering still need a supported
-host. Embedded Android media, host-input capture/keymaps, provisioning and signed
-installers remain unimplemented.
+The native Linux preview now includes:
 
-Read [the 2026-10-01 implementation validation](./docs/VALIDATION_2026-10-01.md) for
-executed checks and exact limitations. Run `python3 scripts/check.py --native-ui`
-for source/native build gates and read
-[the production validation plan](./docs/PRODUCTION_VALIDATION_PLAN.md) for exact limits,
-preview packaging, and the live Windows/Linux tests still required. Historical lab
-evidence remains separate from these new source checks.
+- Explicit-device Android media: PNG compatibility capture and H.264 screenrecord
+  streaming through a trusted local FFmpeg decoder, plus separately supervised
+  scrcpy device-output audio (`core/media/`)
+- Window-scoped JSON tap/hold/WASD keymaps, direct pointer translation, and an
+  explicit asynchronous uinput session (`core/keymap/`, `core/input-linux/`)
+- Offline host-package staging, hash verification, health-gated atomic activation,
+  crash recovery and rollback (`runtime/release_manager.py`)
+- Verified local Android image preparation with an exported administrative review
+  plan (`runtime/provision.py`)
+
+See the [integrated-player runbook](./docs/INTEGRATED_PLAYER.md) and
+[current validation report](./docs/VALIDATION_INTEGRATED_2026-10-01.md).
+These additions connect to the [native GPUI shell](./core/ui/README.md). They are
+preview implementations: cloud checks do not establish visible rendering,
+Android app-visible touch, audible playback, synchronization, latency or device
+compatibility. Input must remain disabled until routing to the intended guest is
+verified. Media requires an already authorized, explicitly selected ADB device;
+this preview does not automatically provision an Android runtime.
+
+Host packages remain unsigned and require explicit local trust/execution consent.
+Privileged Android setup, signed distribution, Windows runtime isolation,
+hardware qualification and production release gates are still open. See
+[release transactions](./runtime/RELEASE_MANAGER.md),
+[image preparation](./runtime/PROVISIONING.md), and
+[the production validation plan](./docs/PRODUCTION_VALIDATION_PLAN.md).
+
+Run `python3 scripts/check.py --native-ui` for source/native build gates.
+`python3 scripts/check_media_codec.py` exercises actual local FFmpeg decoding and
+process cancellation using generated synthetic video, without a connected device.
+Historical [first-preview validation](./docs/VALIDATION_2026-10-01.md) remains a
+separate checkpoint and is not evidence for these newer media paths.
 
 ---
 
