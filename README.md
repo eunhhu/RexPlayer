@@ -28,9 +28,29 @@ RexPlayer investigates whether a small native host application can manage an And
 | **Linux substrate** | ARM64 Android booted in a 4 KiB KVM validation guest | Native distro packaging and hardware coverage are not established |
 | **Input** | Exact 15-event `/dev/uinput` sequence reached Android `getevent` and InputReader as `TOUCHSCREEN` | Raw path verified; application/UI delivery and latency remain open gates |
 | **Graphics/audio** | WSL `/dev/dxg` presence was recorded | Rendering, audio, frame pacing, and zero-copy claims are unverified |
-| **Host UI** | GPUI architecture documents only | Not implemented or benchmarked |
+| **Host UI** | Native GPUI status/launch shell compiles; controller/startup tests pass | Visible window and embedded Android surface unverified; not benchmarked |
 | **Security posture** | Defensive exposure collector reports `8 PASS / 23 FAIL / 3 SKIP` | Baseline is detectable; no bypass or undetectability claim |
 | **Resource usage** | No controlled benchmark | RAM, CPU, startup time, and multi-instance targets are unverified |
+
+---
+
+## Unprivileged v2 preview components
+
+The current work also includes a read-only host capability inspector (`runtime/`), a
+native Rust touch-state library (`core/input/`), a Linux uinput transport
+(`core/input-linux/`), an unprivileged Linux Waydroid launcher (`core/launcher/`), and a
+[GPUI status/launch shell](./core/ui/README.md). These are early components, not an
+integrated production player: the launcher requires an existing Waydroid setup;
+real device/application delivery and native-window rendering still need a supported
+host. Embedded Android media, host-input capture/keymaps, provisioning and signed
+installers remain unimplemented.
+
+Read [the 2026-10-01 implementation validation](./docs/VALIDATION_2026-10-01.md) for
+executed checks and exact limitations. Run `python3 scripts/check.py --native-ui`
+for source/native build gates and read
+[the production validation plan](./docs/PRODUCTION_VALIDATION_PLAN.md) for exact limits,
+preview packaging, and the live Windows/Linux tests still required. Historical lab
+evidence remains separate from these new source checks.
 
 ---
 

@@ -1,0 +1,13 @@
+[package]
+name = "rex-input-linux"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Explicit, fail-closed Linux uinput multitouch adapter for RexPlayer"
+publish = false
+
+[dependencies]
+rex-input-core = { path = "../input" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+evdev = "=0.13.2"

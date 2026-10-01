@@ -1,0 +1,71 @@
+name: Product component checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  components:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: 2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Evidence regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Read-only capability inspector tests
+        run: python -m unittest discover -s runtime/tests -v
+      - name: Rust quality components
+        run: rustup toolchain install 1.98.1 --profile minimal --component clippy,rustfmt
+      - name: Input state core
+        shell: bash
+        run: |
+          cargo +1.98.1 fmt --manifest-path core/input/Cargo.toml --check
+          cargo +1.98.1 clippy --manifest-path core/input/Cargo.toml --locked --all-targets -- -D warnings
+          cargo +1.98.1 test --manifest-path core/input/Cargo.toml --locked
+          cargo +1.98.1 build --manifest-path core/input/Cargo.toml --locked --release
+      - name: Native launcher
+        shell: bash
+        run: |
+          cargo +1.98.1 fmt --manifest-path core/launcher/Cargo.toml --check
+          cargo +1.98.1 clippy --manifest-path core/launcher/Cargo.toml --locked --all-targets -- -D warnings
+          cargo +1.98.1 test --manifest-path core/launcher/Cargo.toml --locked
+          cargo +1.98.1 build --manifest-path core/launcher/Cargo.toml --locked --release
+      - name: Native shell controller
+        shell: bash
+        run: |
+          cargo +1.98.1 fmt --manifest-path core/ui/Cargo.toml --check
+          cargo +1.98.1 clippy --manifest-path core/ui/Cargo.toml --locked --all-targets -- -D warnings
+          cargo +1.98.1 test --manifest-path core/ui/Cargo.toml --locked
+      - name: Linux touch transport
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cargo +1.98.1 fmt --manifest-path core/input-linux/Cargo.toml --check
+          cargo +1.98.1 clippy --manifest-path core/input-linux/Cargo.toml --locked --all-targets -- -D warnings
+          cargo +1.98.1 test --manifest-path core/input-linux/Cargo.toml --locked
+          cargo +1.98.1 build --manifest-path core/input-linux/Cargo.toml --locked --release
+      - name: Install native Linux build libraries
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig1-dev libwayland-dev libvulkan-dev
+      - name: Compile native GPUI shell
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cargo +1.98.1 clippy --manifest-path core/ui/Cargo.toml --locked --features native-gpui --all-targets -- -D warnings
+          cargo +1.98.1 test --manifest-path core/ui/Cargo.toml --locked --features native-gpui
+          cargo +1.98.1 build --manifest-path core/ui/Cargo.toml --locked --features native-gpui --release
+          core/ui/target/release/rex-player --help
