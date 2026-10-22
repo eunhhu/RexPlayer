@@ -38,9 +38,13 @@ def main() -> int:
     args = parser.parse_args()
     checks: list[dict] = []
     def check(name, command, timeout=600):
+        if args.json:
+            print(f"CHECK_START: {name}", file=sys.stderr, flush=True)
         result = run(name, command, timeout)
         result['command'] = command
         checks.append(result)
+        if args.json:
+            print(f"CHECK_{result['status']}: {name}", file=sys.stderr, flush=True)
         if not args.json:
             print(f"{result['status']}: {name}", flush=True)
             if result['status'] != 'PASS':
@@ -48,7 +52,7 @@ def main() -> int:
 
     check('historical evidence structure', [sys.executable, 'proof/validate_evidence.py'])
     check('evidence regression tests', [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-v'])
-    check('capability inspector tests', [sys.executable, '-m', 'unittest', 'discover', '-s', 'runtime/tests', '-v'])
+    check('runtime inspector, provisioning and release transaction tests', [sys.executable, '-m', 'unittest', 'discover', '-s', 'runtime/tests', '-v'])
     check('historical manifest hashes', ['sha256sum', '-c', 'proof/evidence/SHA256SUMS.txt'])
     for script in sorted((ROOT / 'proof').rglob('*.sh')):
         relative = str(script.relative_to(ROOT))
@@ -58,13 +62,15 @@ def main() -> int:
         for source in ('proof/input/rex_uinput_mt.c', 'proof/windows-wsl/create_binder_devices.c'):
             check(f'compile {source}', ['gcc', '-O2', '-Wall', '-Wextra', '-Werror', '-std=c11',
                                        source, '-o', str(Path(temporary) / Path(source).stem)])
-    for directory in ('proof/input-rust', 'core/input', 'core/launcher', 'core/input-linux', 'core/ui'):
+    for directory in ('proof/input-rust', 'core/input', 'core/launcher', 'core/input-linux', 'core/keymap', 'core/media', 'core/ui'):
         manifest = f'{directory}/Cargo.toml'
+        features = ['--all-features'] if directory in ('core/keymap', 'core/media') else []
         check(f'format {directory}', ['cargo', 'fmt', '--manifest-path', manifest, '--check'])
         check(f'clippy {directory}', ['cargo', 'clippy', '--manifest-path', manifest, '--locked',
-                                     '--all-targets', '--', '-D', 'warnings'])
-        check(f'test {directory}', ['cargo', 'test', '--manifest-path', manifest, '--locked'])
-        check(f'release build {directory}', ['cargo', 'build', '--manifest-path', manifest, '--locked', '--release'])
+                                     '--all-targets', *features, '--', '-D', 'warnings'])
+        check(f'test {directory}', ['cargo', 'test', '--manifest-path', manifest, '--locked', *features])
+        check(f'release build {directory}', ['cargo', 'build', '--manifest-path', manifest, '--locked', '--release', *features])
+    check('real H264 codec and process pipeline', [sys.executable, 'scripts/check_media_codec.py'], 360)
     if args.native_ui:
         manifest = 'core/ui/Cargo.toml'
         common = ['--manifest-path', manifest, '--locked', '--features', 'native-gpui']

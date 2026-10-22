@@ -26,7 +26,8 @@ This roadmap separates completed feasibility evidence from unimplemented product
 - [ ] Replace broad proof privileges, host IPC, and host networking with a reviewed minimum policy.
 - [ ] Disable ADB by default and expose management only through an authenticated local broker.
 - [ ] Add bounded start/stop, crash recovery, sleep/resume, host reboot, and stale-state cleanup tests.
-- [ ] Add journaled install/update/rollback/uninstall transactions.
+- [x] Implement offline unsigned host-package stage/activate/rollback and crash recovery.
+- [ ] Add signed runtime updates, privileged runtime migration and safe uninstall.
 
 **Exit gate:** 100 consecutive lifecycle runs on disposable supported hosts with no leaked process, mount, network rule, or unrelated host-state modification.
 
@@ -34,12 +35,15 @@ This roadmap separates completed feasibility evidence from unimplemented product
 
 Source milestone: `core/input/` provides tested coordinate mapping/contact state, and
 `core/input-linux/` provides explicit uinput transport. Actual Android application
-delivery, device permissions, host capture and per-instance integration remain gates.
+delivery, device permissions and per-instance integration remain gates.
+`core/keymap/` adds window-scoped input translation and asynchronous uinput
+ownership; global input capture is intentionally absent from this preview.
 
 **Goal:** move from synthetic proof events to safe user-controlled application input.
 
 - [ ] Implement Windows RawInput and Linux evdev capture behind explicit permission and focus controls.
-- [ ] Define a versioned keymap schema and migration tests.
+- [x] Implement schema-v1 tap/hold/joystick keymaps; reject unsupported schema versions.
+- [ ] Add migrations when a later schema is defined.
 - [ ] Verify Android application-level touch, not only `getevent` and InputReader registration.
 - [ ] Test DPI, rotation, resizing, multi-monitor coordinates, focus loss, and emergency input release.
 - [ ] Measure end-to-end latency, jitter, event loss, and sustained input under load.
