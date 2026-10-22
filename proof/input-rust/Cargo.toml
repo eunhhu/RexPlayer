@@ -2,6 +2,9 @@
 name = "rex-input-proof"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+publish = false
+description = "Historical host-side uinput proof used by proof/input; not a product component"
 
 [dependencies]
 anyhow = "1.0"

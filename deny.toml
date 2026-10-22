@@ -1,0 +1,67 @@
+# cargo-deny policy for RexPlayer's component lockfiles.
+#
+# Scope: advisories, bans, licenses, sources. This is supply-chain hygiene for
+# the seven independent Cargo manifests under core/ and proof/; it is not a
+# claim that any artifact is signed or release-ready (see
+# docs/PACKAGING_AND_RELEASE_STRATEGY.md).
+#
+# Run locally with:
+#   cargo deny --config deny.toml --manifest-path core/ui/Cargo.toml check
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+# A yanked release in a lockfile means the pinned set is no longer what the
+# registry recommends: treat it as a failure, not a warning.
+yanked = "deny"
+# Vulnerabilities fail for every crate in the lockfile. "workspace" limits the
+# unmaintained-crate signal to dependencies this repository chooses directly;
+# transitive unmaintained crates (for example inside gpui's HTTP stack) are
+# tracked in the supply-chain section of docs/MEDIA_PATH_DECISION.md instead of
+# silently passing or permanently reddening the gate.
+unmaintained = "workspace"
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Internal crates depend on each other by path only, which Cargo expresses as a
+# wildcard requirement. External (registry) wildcards stay denied.
+allow-wildcard-paths = true
+deny = []
+skip = []
+
+[licenses]
+version = 2
+# Every dependency in these lockfiles must be under one of these permissive or
+# weak-copyleft licenses. Adding a stronger copyleft dependency is a deliberate
+# decision, so it must arrive as a reviewed allowlist entry rather than silently.
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "NCSA",
+  "Unlicense",
+  "CC0-1.0",
+  "BSL-1.0",
+  "MPL-2.0",
+  "OpenSSL",
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+# The allowlist is a policy ceiling, not a claim that every entry is in use.
+unused-allowed-license = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
