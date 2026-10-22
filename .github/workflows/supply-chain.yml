@@ -1,0 +1,63 @@
+name: Supply chain
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Weekly re-run so a new advisory against an unchanged lockfile still reddens
+  # the default branch instead of waiting for the next human push.
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-deny@0.20.2
+      - name: Deny vulnerable, yanked, banned or foreign-sourced crates
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The components are independent crates, not one workspace, so every
+          # lockfile is checked separately.
+          for manifest in \
+            proof/input-rust \
+            core/input \
+            core/launcher \
+            core/input-linux \
+            core/keymap \
+            core/media \
+            core/ui
+          do
+            echo "::group::${manifest}"
+            cargo deny --config deny.toml --manifest-path "${manifest}/Cargo.toml" \
+              check advisories bans licenses sources
+            echo "::endgroup::"
+          done
+      - name: Deny report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for manifest in proof/input-rust core/input core/launcher core/input-linux core/keymap core/media core/ui; do
+            tag="${manifest//\//_}"
+            cargo deny --config deny.toml --manifest-path "${manifest}/Cargo.toml" \
+              --format json check advisories bans licenses sources \
+              > "deny-${tag}.json" || true
+          done
+          ls -l deny-*.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: cargo-deny-reports
+          path: deny-*.json
+          if-no-files-found: warn
+          retention-days: 14
