@@ -1,5 +1,13 @@
 # Native Stealth & Zygisk Evasion Strategy
 
+> [!WARNING]
+> **Status: threat model, not a capability.** No part of this strategy exists in
+> the repository, and the default package must not ship module hiding, property
+> spoofing or integrity bypasses
+> ([README — security and research scope](../README.md)). The executed baseline is
+> still detectable: **8 PASS / 23 FAIL / 3 SKIP**, `DETECTABLE=YES`
+> ([proof/](../proof/README.md)).
+
 This document details the architectural strategy for **natively embedding the capabilities of Magisk, Zygisk, Shamiko, Hide My Applist (HMA), and Play Integrity Fix directly into RexPlayer v2's Kernel, Bionic C Library, ART (Android Runtime), and AOSP Framework layers**.
 
 By baking these evasion techniques natively into the operating system rather than injecting them as third-party userspace modules, RexPlayer v2 eliminates all module footprints, race conditions, and injection signatures.
