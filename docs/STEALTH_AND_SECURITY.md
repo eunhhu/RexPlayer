@@ -1,5 +1,12 @@
 # Stealth & Security Analysis Architecture
 
+> [!WARNING]
+> **Status: threat model, not a capability.** Nothing below is implemented, and
+> the default package must not ship evasion or concealed instrumentation
+> ([README — security and research scope](../README.md)). The executed baseline is
+> detectable: **8 PASS / 23 FAIL / 3 SKIP**, `DETECTABLE=YES`
+> ([proof/](../proof/README.md)).
+
 RexPlayer v2 is designed as a premier environment for **mobile game security research, CTF challenges, reverse engineering, and dynamic instrumentation**. This document details the defense-in-depth architecture implemented to bypass modern commercial anti-cheat solutions and runtime integrity checks.
 
 ---

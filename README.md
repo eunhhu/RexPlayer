@@ -40,7 +40,9 @@ The native Linux preview now includes:
 
 - Explicit-device Android media: PNG compatibility capture and H.264 screenrecord
   streaming through a trusted local FFmpeg decoder, plus separately supervised
-  scrcpy device-output audio (`core/media/`)
+  scrcpy device-output audio (`core/media/`). This is a compatibility/diagnostic
+  transport capped at five PNG captures per second by default — not a game-render
+  path; see the [media path decision record](./docs/MEDIA_PATH_DECISION.md)
 - Window-scoped JSON tap/hold/WASD keymaps, direct pointer translation, and an
   explicit asynchronous uinput session (`core/keymap/`, `core/input-linux/`)
 - Offline host-package staging, hash verification, health-gated atomic activation,
@@ -117,6 +119,7 @@ Explore the detailed architecture and technical specifications in [`/docs`](./do
 - **[Hardware, Audio, Media & Multi-Instance Pipeline (`docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md`)](./docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md)**: Proposed subsystems awaiting runtime gates.
 - **[Comprehensive Exposure Matrix (`docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md`)](./docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md)**: Research checklist; the executed defensive collector and its detectable result are in `proof/`.
 - **[Evidence-Led Roadmap (`docs/ROADMAP.md`)](./docs/ROADMAP.md)**: Gate-based implementation and release milestones.
+- **[Media Path Decision Record (`docs/MEDIA_PATH_DECISION.md`)](./docs/MEDIA_PATH_DECISION.md)**: Why the ADB capture transport cannot become the product display path, the candidate presentation paths, and the measurements required before any latency claim.
 
 ---
 

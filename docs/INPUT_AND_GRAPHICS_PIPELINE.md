@@ -1,5 +1,15 @@
 # Input & Graphics Pipeline Specification
 
+> [!WARNING]
+> **Status: mostly unimplemented.** Implemented today: `core/input/` (coordinate
+> mapping), `core/input-linux/` (verified `/dev/uinput` → Android `InputReader`
+> `TOUCHSCREEN`), and `core/keymap/` (window-scoped translation). Not implemented:
+> host capture, any GPU/DMA-BUF presentation path, zero-copy compositing, and the
+> latency claims below — the current preview reads Android PNG screenshots at a
+> five-captures-per-second default cap
+> ([MEDIA_PATH_DECISION.md](MEDIA_PATH_DECISION.md)). No latency number in this
+> document has been measured.
+
 This document details the low-level graphics rendering and input translation architecture of **RexPlayer v2**, explaining how near-zero display latency and microsecond-level touch response are achieved across Windows and Linux.
 
 ---
