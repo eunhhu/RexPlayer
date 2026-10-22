@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "Window controls",
+  "pointer": true,
+  "bindings": [
+    {
+      "kind": "joystick",
+      "up": "w",
+      "left": "a",
+      "down": "s",
+      "right": "d",
+      "center": { "x": 0.2, "y": 0.75 },
+      "radius": 0.15
+    },
+    {
+      "kind": "hold",
+      "trigger": { "kind": "key", "key": "space" },
+      "point": { "x": 0.8, "y": 0.75 }
+    },
+    {
+      "kind": "tap",
+      "trigger": { "kind": "key", "key": "e" },
+      "point": { "x": 0.8, "y": 0.5 }
+    }
+  ]
+}
