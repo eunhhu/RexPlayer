@@ -1,5 +1,14 @@
 # Comprehensive Anti-Detection Matrix & Substrate Safeguards
 
+> [!WARNING]
+> **Status: research checklist, not a capability.** The matrix records what to
+> look for; no row below is neutralised by current code, and the default package
+> must not ship evasion ([README — security and research scope](../README.md)).
+> The executed collector against the 2026-08-20 substrate reports
+> **8 PASS / 23 FAIL / 3 SKIP**, `DETECTABLE=YES` — see
+> [proof/](../proof/README.md) and
+> [proof/evidence/detection-matrix-result.tsv](../proof/evidence/detection-matrix-result.tsv).
+
 This document catalogs over **50 discrete anti-cheat and environment detection vectors** across hardware, kernel, runtime, graphics, and system layers, detailing how **RexPlayer v2** natively neutralizes each vector at the substrate level.
 
 ---

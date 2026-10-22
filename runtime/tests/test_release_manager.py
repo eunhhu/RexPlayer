@@ -254,7 +254,10 @@ class ReleaseTransactionTests(unittest.TestCase):
 
     def test_symlink_and_unrecognized_roots_are_refused(self):
         actual = self.base / 'actual'
-        actual.mkdir()
+        # Explicit 0o700: the root guard refuses group/world-writable install
+        # roots, so a default-mode mkdir() would make this test's outcome depend
+        # on the developer's umask instead of on the symlink/contents checks.
+        actual.mkdir(mode=0o700)
         linked = self.base / 'linked'
         linked.symlink_to(actual, target_is_directory=True)
         with self.assertRaisesRegex(release.ReleaseError, 'symlink'):
@@ -263,6 +266,20 @@ class ReleaseTransactionTests(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, 'unrecognized'):
             release.ReleaseManager(actual).status()
         self.assertEqual((actual / 'unrelated').read_text(), 'keep')
+
+    def test_group_writable_root_is_refused_regardless_of_umask(self):
+        unsafe = self.base / 'unsafe'
+        unsafe.mkdir(mode=0o700)
+        unsafe.chmod(0o775)
+        (unsafe / 'unrelated').write_text('keep')
+        previous = os.umask(0o002)
+        try:
+            with self.assertRaisesRegex(release.ReleaseError,
+                                        'install root must not be writable by group or others'):
+                release.ReleaseManager(unsafe).status()
+        finally:
+            os.umask(previous)
+        self.assertEqual((unsafe / 'unrelated').read_text(), 'keep')
 
     def test_managed_symlinks_and_tampering_are_refused(self):
         identifier = self.install(self.bundle())['current']

@@ -1,5 +1,14 @@
 # RexPlayer v2: Architecture & System Specification
 
+> [!WARNING]
+> **Status: unimplemented design proposal.** No code in this repository provides
+> the capabilities below, and the default package must not ship them
+> ([README — security and research scope](../README.md)). Executed evidence is
+> limited to [VERIFICATION_2026-08-20.md](VERIFICATION_2026-08-20.md),
+> [VALIDATION_INTEGRATED_2026-10-01.md](VALIDATION_INTEGRATED_2026-10-01.md) and
+> [proof/](../proof/README.md). Component READMEs under `core/` state what each
+> crate actually does; where this document and those conflict, the READMEs win.
+
 RexPlayer v2 is a container-native Android execution environment and security analysis platform designed for Windows 11 (via WSL2) and Native Linux. This document specifies the comprehensive technical architecture, component boundaries, IPC protocols, and execution lifecycles.
 
 ---
@@ -139,6 +148,11 @@ RexPlayer bypasses slow frame capture by utilizing **GPUI Direct GPU Compositing
 ---
 
 ### 2.4 Security & Reverse Engineering Subsystem (`rex-security`)
+
+> **Status: not implemented.** There is no `rex-security` crate, no Frida bridge,
+> no KernelSU integration and no memory dumper in this repository. The default
+> package must not ship instrumentation, spoofing or anti-cheat evasion; see the
+> [README](../README.md) policy and [STEALTH_AND_SECURITY.md](STEALTH_AND_SECURITY.md).
 
 ```
 [ GPUI Security Studio (Native Rust High-Speed Code Editor & Terminal) ]

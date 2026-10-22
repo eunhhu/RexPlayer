@@ -1,5 +1,14 @@
 # Hardware, Audio, Media & Multi-Instance Architecture
 
+> [!WARNING]
+> **Status: unimplemented design proposal.** Specifically not implemented: audio
+> playback/capture devices, A/V clocking, multi-instance isolation, network
+> isolation policy and any hardware acceleration path. What exists is an
+> explicit-device compatibility backend (`core/media/`) that captures PNG frames
+> and H.264 `screenrecord` over ADB, plus separately consented scrcpy audio
+> ([MEDIA_PATH_DECISION.md](MEDIA_PATH_DECISION.md)). No compatibility,
+> synchronisation or performance claim in this document is measured.
+
 This document specifies the missing operational hardware pipelines in **RexPlayer v2** that determine real-world game compatibility, audiovisual synchronization, media decoding, network isolation, and multi-instance orchestration.
 
 ---

@@ -1,5 +1,13 @@
 # Commercial Anti-Cheat In-Depth Analysis & Native Evasion
 
+> [!WARNING]
+> **Status: threat model, not a capability.** This document describes what
+> commercial detectors look for and how a future substrate might differ; nothing
+> here is implemented, and the default package must not ship evasion
+> ([README — security and research scope](../README.md)). The only executed
+> measurement is the defensive collector in [proof/](../proof/README.md), which
+> reports **DETECTABLE=YES** (8 PASS / 23 FAIL / 3 SKIP).
+
 This document analyzes the internal detection methodologies utilized by major commercial mobile game anti-cheat and app shielding solutions—including **LIAPP (Lockin Company)**, **XIGNCODE3 Mobile (Wellbia)**, **Tencent ACE (Anti-Cheat Expert)**, **AppIron**, and **AhnLab V3 Mobile**—and details how **RexPlayer v2** defeats them at the **Kernel and HAL substrate layers**.
 
 ---
