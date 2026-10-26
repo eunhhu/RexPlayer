@@ -1,132 +1,131 @@
-# RexPlayer v2: Next-Gen Ultra-Lightweight Android Engine & Security Analysis Platform
+# RexPlayer
+
+A design-and-prototype repository for a container-native Android runtime and security-analysis platform, written in Rust (GPUI host shell) and Python (runtime tooling), aimed at people researching lightweight Android execution on Linux and Windows/WSL2 hosts.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%20Linux-blue.svg)](#supported-platforms)
-[![UI](https://img.shields.io/badge/Frontend-GPUI%20(Pure%20Rust%20GPU)-blue.svg)](#frontend--ui)
-[![Engine](https://img.shields.io/badge/Engine-WSL2%20%2F%20Waydroid%20(LXC)-2496ED.svg)](#engine--virtualization)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%20Linux-blue.svg)](#tech-stack)
+[![UI](https://img.shields.io/badge/Frontend-GPUI%20(Pure%20Rust%20GPU)-blue.svg)](./core/ui/README.md)
+[![Engine](https://img.shields.io/badge/Engine-WSL2%20%2F%20Waydroid%20(LXC)-2496ED.svg)](./docs/ARCHITECTURE_V2.md)
 [![Validation](https://img.shields.io/badge/Validation-Runtime%20proof-orange.svg)](./docs/VERIFICATION_2026-08-20.md)
 
-> **RexPlayer v2** is an active design and prototype for a container-native Android execution and security-analysis platform.
-> It targets LXC/Waydroid-style Android substrates, native input, and accelerated graphics on Windows and Linux. Performance, production readiness, commercial anti-cheat compatibility, and “undetectability” are not currently established.
+**Status:** Prototype — specification-heavy pre-alpha. Android 14 boot, ADB and a raw `/dev/uinput` → Android `TOUCHSCREEN` path have been reproduced in lab runs; a production installer, graphics/audio pipeline, app-visible input, performance targets and any "undetectability" are **not** established. The recorded baseline is detectable (8 PASS / 23 FAIL / 3 SKIP in the defensive exposure matrix).
 
 > [!IMPORTANT]
-> The current `main` branch is specification-heavy pre-alpha work, not a finished v2 implementation. A 2026-08-20 ARM64 lab run and a separate Windows 11 → WSL2 custom-kernel run both proved Android 14 boot, ADB, and a `/dev/uinput` → Android `TOUCHSCREEN` path, while the baseline environment remained **detectable (8 PASS / 23 FAIL / 3 SKIP)**. Read the [runtime verification report](./docs/VERIFICATION_2026-08-20.md) and [reproduction proof](./proof/README.md) before treating any architecture item below as implemented.
+> Read the [runtime verification report](./docs/VERIFICATION_2026-08-20.md) and the [reproduction proof](./proof/README.md) before treating any architecture item below as implemented. Documents under `docs/` that describe stealth or anti-cheat topics are historical research notes, not product claims.
 
----
+## Features
 
-## 🧭 Why RexPlayer v2?
+What exists in the tree today:
 
-RexPlayer investigates whether a small native host application can manage an Android container substrate without inheriting a traditional desktop-emulator stack. The project is evidence-led: a capability moves from design to implementation only after a reproducible runtime gate passes.
+- `rex-launcher` (`core/launcher`): dependency-free Rust CLI for pre-provisioned Linux Waydroid hosts with `doctor`, `status` and an explicit-consent `launch` command.
+- `rex-player` (`core/ui`): GPUI 0.2.2 window that integrates the media, keymap, input and launcher crates (Linux x86_64/aarch64, behind the `native-gpui` feature).
+- `rex-media` (`core/media`): explicit-device ADB video via bounded PNG `screencap` polling or H.264 `screenrecord` decoded through a trusted local FFmpeg; separately supervised scrcpy device audio.
+- `rex-keymap` (`core/keymap`): window-scoped JSON tap / hold / joystick / pointer profiles (`examples/default.json`).
+- `rex-input-core` + `rex-input-linux` (`core/input`, `core/input-linux`): typed multitouch contact allocator and a Linux `/dev/uinput` type-B transport.
+- Python runtime tooling (`runtime/`): read-only host capability inspector, hash-verified Android image preparation (`provision.py`), and a health-gated, atomic, rollback-capable host-package release manager (`release_manager.py`).
+- Source gates (`scripts/check.py`, `scripts/check_media_codec.py`) and a packaging script for unsigned Linux previews (`scripts/package_preview.py`).
+- Sanitized evidence from the 2026 lab runs plus fail-closed verification runners (`proof/`).
 
----
+## How it works
 
-## ⚡ Key Architectural Highlights
+The host application is a small native shell rather than a desktop emulator. On Linux, `rex-launcher` inspects an existing Waydroid session (UID, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`) and only requests the Android UI after explicit acknowledgement. `rex-player` builds on it: `rex-media` pulls frames from an already-authorized ADB device into a newest-only mailbox, `rex-keymap` translates window-local keyboard/mouse events into touch transitions, and `rex-input-linux` submits those transitions as multitouch frames through a single virtual uinput touchscreen. Nothing is captured globally, no device is auto-selected, and input stays disabled until routing to the intended guest is verified.
 
-| Area | Current evidence | Product status |
-| :--- | :--- | :--- |
-| **Windows substrate** | Windows 11 → WSL2 custom kernel → x86-64 Android 14 booted with ADB | Validation-only; installer and lifecycle recovery are not implemented |
-| **Linux substrate** | ARM64 Android booted in a 4 KiB KVM validation guest | Native distro packaging and hardware coverage are not established |
-| **Input** | Exact 15-event `/dev/uinput` sequence reached Android `getevent` and InputReader as `TOUCHSCREEN` | Raw path verified; application/UI delivery and latency remain open gates |
-| **Graphics/audio** | WSL `/dev/dxg` presence was recorded | Rendering, audio, frame pacing, and zero-copy claims are unverified |
-| **Host UI** | Integrated GPUI media/input window compiles; 39 native-feature tests pass | Actual window/Android presentation unverified; not benchmarked |
-| **Security posture** | Defensive exposure collector reports `8 PASS / 23 FAIL / 3 SKIP` | Baseline is detectable; no bypass or undetectability claim |
-| **Resource usage** | No controlled benchmark | RAM, CPU, startup time, and multi-instance targets are unverified |
+On the Python side, `runtime/capability_inspector.py` inventories the host without starting anything, `runtime/provision.py` verifies local Android images and exports a review plan, and `runtime/release_manager.py` stages host packages offline, verifies hashes, activates them atomically behind a health check and rolls back on failure. The Windows path (WSL2 + custom kernel + redroid OCI image) exists only as proof scripts under `proof/windows-wsl/`.
 
----
+## Tech stack
 
-## Unprivileged v2 preview components
+- Runtime/Language: Rust 2021/2024 editions (crates declare `rust-version` 1.82–1.88; CI pins 1.98.1), Python 3 (standard library only)
+- UI: GPUI `=0.2.2`
+- Input: `evdev` 0.13.2 (Linux uinput)
+- Media: ADB `screencap` / `screenrecord`, external FFmpeg and scrcpy processes
+- Android substrate: Waydroid / LXC on Linux, WSL2 + redroid on Windows (validation only)
+- Infra/Tooling: GitHub Actions (`product-components.yml`, `runtime-proof.yml`), `cargo fmt` / `clippy -D warnings`, `unittest`
 
-The native Linux preview now includes:
+## Getting started
 
-- Explicit-device Android media: PNG compatibility capture and H.264 screenrecord
-  streaming through a trusted local FFmpeg decoder, plus separately supervised
-  scrcpy device-output audio (`core/media/`)
-- Window-scoped JSON tap/hold/WASD keymaps, direct pointer translation, and an
-  explicit asynchronous uinput session (`core/keymap/`, `core/input-linux/`)
-- Offline host-package staging, hash verification, health-gated atomic activation,
-  crash recovery and rollback (`runtime/release_manager.py`)
-- Verified local Android image preparation with an exported administrative review
-  plan (`runtime/provision.py`)
+### Requirements
 
-See the [integrated-player runbook](./docs/INTEGRATED_PLAYER.md) and
-[current validation report](./docs/VALIDATION_INTEGRATED_2026-10-01.md).
-These additions connect to the [native GPUI shell](./core/ui/README.md). They are
-preview implementations: cloud checks do not establish visible rendering,
-Android app-visible touch, audible playback, synchronization, latency or device
-compatibility. Input must remain disabled until routing to the intended guest is
-verified. Media requires an already authorized, explicitly selected ADB device;
-this preview does not automatically provision an Android runtime.
+- Rust toolchain (1.88+ for `core/ui` and `core/media`; CI uses 1.98.1) with `clippy` and `rustfmt`
+- Python 3
+- Linux native build libraries for the GPUI shell: `build-essential pkg-config libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig1-dev libwayland-dev libvulkan-dev ffmpeg`
+- For device media: an ADB device you have already authorized yourself
 
-Host packages remain unsigned and require explicit local trust/execution consent.
-Privileged Android setup, signed distribution, Windows runtime isolation,
-hardware qualification and production release gates are still open. See
-[release transactions](./runtime/RELEASE_MANAGER.md),
-[image preparation](./runtime/PROVISIONING.md), and
-[the production validation plan](./docs/PRODUCTION_VALIDATION_PLAN.md).
+### Install
 
-Run `python3 scripts/check.py --native-ui` for source/native build gates.
-`python3 scripts/check_media_codec.py` exercises actual local FFmpeg decoding and
-process cancellation using generated synthetic video, without a connected device.
-Historical [first-preview validation](./docs/VALIDATION_2026-10-01.md) remains a
-separate checkpoint and is not evidence for these newer media paths.
-
----
-
-## 🏛️ System Architecture
-
-```text
-Signed native launcher (planned)
-        │
-        ├── Windows: dedicated WSL distribution + pinned custom kernel
-        │                │
-        │                └── pinned Android OCI image + BinderFS/uinput
-        │
-        └── Linux: distro package + supported host-kernel capability gate
-                         │
-                         └── pinned Android OCI image + BinderFS/uinput
-
-Verified today: Android boot/ADB and raw uinput → InputReader path
-Not yet verified: production installer, graphics, audio, app-visible input,
-updates, multi-instance isolation, performance, or broad hardware support
+```sh
+git clone https://github.com/eunhhu/RexPlayer
+cd RexPlayer
 ```
 
----
+### Run
 
-## 🛡️ Security and research scope
+```sh
+# Python evidence / runtime tests
+python -m unittest discover -s tests -v
+python -m unittest discover -s runtime/tests -v
 
-RexPlayer's releasable baseline is a transparent, detectable Android lab substrate. The default package must not ship hidden instrumentation, integrity bypasses, fingerprint spoofing, or anti-cheat evasion. Research helpers, if developed for authorized owned-lab use, must be separate opt-in artifacts with explicit risk labels and must never be represented as an undetectable consumer feature.
+# Non-privileged source gates (add --native-ui to also compile/test the GPUI binary)
+python3 scripts/check.py
+python3 scripts/check.py --native-ui
 
-The current proof deliberately records exposed properties, root artifacts, ADB state, graphics markers, and container fingerprints instead of changing or concealing them.
+# Decode a synthetic H.264 fixture through a real local FFmpeg (no device needed)
+python3 scripts/check_media_codec.py
 
----
+# Individual Rust components
+cargo test --manifest-path core/launcher/Cargo.toml --locked
+cargo build --manifest-path core/launcher/Cargo.toml --locked --release
+core/launcher/target/release/rex-launcher --help
 
-## 📚 Technical Documentation
+cargo build --manifest-path core/ui/Cargo.toml --locked --features native-gpui
+core/ui/target/debug/rex-player --adb-serial YOUR_SERIAL
+```
 
-Explore the detailed architecture and technical specifications in [`/docs`](./docs):
+Each crate's README documents its own flags and limits: [`core/launcher`](./core/launcher/README.md), [`core/ui`](./core/ui/README.md), [`core/media`](./core/media/README.md), [`core/keymap`](./core/keymap/README.md), [`core/input`](./core/input/README.md), [`core/input-linux`](./core/input-linux/README.md). Runtime tooling is described in [`runtime/README.md`](./runtime/README.md), [`runtime/PROVISIONING.md`](./runtime/PROVISIONING.md) and [`runtime/RELEASE_MANAGER.md`](./runtime/RELEASE_MANAGER.md).
 
-- **[Runtime Verification 2026-08-20 (`docs/VERIFICATION_2026-08-20.md`)](./docs/VERIFICATION_2026-08-20.md)**: Executed Android boot, ADB, `/dev/uinput` touchscreen, and defensive exposure-matrix evidence.
-- **[Reproduction Proof (`proof/README.md`)](./proof/README.md)**: Source, fail-closed runners, sanitized logs, and explicit verification boundaries.
-- **[Packaging and Release Strategy (`docs/PACKAGING_AND_RELEASE_STRATEGY.md`)](./docs/PACKAGING_AND_RELEASE_STRATEGY.md)**: Artifact split, Windows/Linux installers, WSL kernel risk, updates/rollback, signing, SBOM/provenance, CI channels, and mandatory release gates.
-- **[Technical Precedents & Prior Art (`docs/TECHNICAL_PRECEDENTS.md`)](./docs/TECHNICAL_PRECEDENTS.md)**: Background research on Android execution approaches and prior implementation trade-offs.
-- **[RexPlayer v1 Post-Mortem (`docs/POST_MORTEM_V1.md`)](./docs/POST_MORTEM_V1.md)**: Why the initial QEMU + SPICE + Qt6 architecture encountered latency and integration bottlenecks.
-- **[Architecture v2 Specification (`docs/ARCHITECTURE_V2.md`)](./docs/ARCHITECTURE_V2.md)**: Proposed system design; unverified sections remain design targets.
-- **[Input & Graphics Pipeline (`docs/INPUT_AND_GRAPHICS_PIPELINE.md`)](./docs/INPUT_AND_GRAPHICS_PIPELINE.md)**: Proposed display/input architecture; only the raw input proof linked above is currently verified.
-- **[Security research documents (`docs/STEALTH_AND_SECURITY.md`)](./docs/STEALTH_AND_SECURITY.md)**: Historical threat-model and owned-lab proposals, excluded from default release packaging and not validated as bypass capabilities.
-- **[Native security research proposals (`docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md`)](./docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md)**: Historical research notes, not product claims or stable-channel scope.
-- **[Commercial anti-cheat analysis (`docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md`)](./docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md)**: Threat-model notes; no compatibility or evasion claim.
-- **[Hardware, Audio, Media & Multi-Instance Pipeline (`docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md`)](./docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md)**: Proposed subsystems awaiting runtime gates.
-- **[Comprehensive Exposure Matrix (`docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md`)](./docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md)**: Research checklist; the executed defensive collector and its detectable result are in `proof/`.
-- **[Evidence-Led Roadmap (`docs/ROADMAP.md`)](./docs/ROADMAP.md)**: Gate-based implementation and release milestones.
+## Project structure
 
----
+```text
+core/
+  launcher/     rex-launcher CLI (Waydroid doctor/status/launch)
+  ui/           rex-player GPUI shell
+  media/        rex-media: ADB screenshot/screenrecord video, scrcpy audio
+  keymap/       rex-keymap: JSON window-scoped keymaps
+  input/        rex-input-core: coordinate mapping + contact allocator
+  input-linux/  rex-input-linux: /dev/uinput multitouch transport
+runtime/        capability inspector, image provisioning, release manager (+ tests)
+scripts/        check.py, check_media_codec.py, package_preview.py
+tests/          evidence, packaging and check-runner regression tests
+proof/          2026 lab evidence, input producers, Windows/WSL runners
+docs/           architecture, verification reports, roadmap, research notes
+.github/        CI workflows
+```
 
-## 🗂️ Legacy Codebase
+## Configuration
 
-The initial experimental QEMU + SPICE + Qt6 implementation has been archived in the [`archive/v1-qemu-spice-qt`](https://github.com/eunhhu/RexPlayer/tree/archive/v1-qemu-spice-qt) branch for reference.
+Environment variables read by the code:
 
----
+- `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR` — checked by `rex-launcher doctor` and the GPUI shell before any window is created
+- `ADB_MDNS_AUTO_CONNECT` — inspected by `rex-media` so no implicit device discovery happens
+- `REX_H264_FIXTURE` — path to the generated fixture used by the `rex-media` streaming tests
+- `USERPROFILE` — used by the Windows capability inspector
 
-## 📄 License
+Keymaps are JSON files (see `core/keymap/examples/default.json`); release transactions and provisioning plans are JSON documents described in `runtime/`.
 
-RexPlayer is licensed under the [MIT License](./LICENSE).
-All reverse engineering and analysis capabilities are intended strictly for educational and security research purposes.
+## Documentation
+
+- [Runtime verification 2026-08-20](./docs/VERIFICATION_2026-08-20.md) and [integrated validation 2026-10-01](./docs/VALIDATION_INTEGRATED_2026-10-01.md)
+- [Integrated player runbook](./docs/INTEGRATED_PLAYER.md)
+- [Architecture v2 specification](./docs/ARCHITECTURE_V2.md), [input & graphics pipeline](./docs/INPUT_AND_GRAPHICS_PIPELINE.md), [hardware/audio/media pipeline](./docs/HARDWARE_AUDIO_MEDIA_PIPELINE.md)
+- [Packaging and release strategy](./docs/PACKAGING_AND_RELEASE_STRATEGY.md), [production validation plan](./docs/PRODUCTION_VALIDATION_PLAN.md), [roadmap](./docs/ROADMAP.md)
+- [v1 post-mortem](./docs/POST_MORTEM_V1.md) and [technical precedents](./docs/TECHNICAL_PRECEDENTS.md)
+- Research notes (not product scope): [security](./docs/STEALTH_AND_SECURITY.md), [native/Zygisk](./docs/NATIVE_STEALTH_AND_ZYGISK_STRATEGY.md), [commercial anti-cheat analysis](./docs/COMMERCIAL_ANTI_CHEAT_ANALYSIS.md), [exposure matrix](./docs/COMPREHENSIVE_ANTI_DETECTION_MATRIX.md)
+
+The original QEMU + SPICE + Qt6 implementation is archived on the [`archive/v1-qemu-spice-qt`](https://github.com/eunhhu/RexPlayer/tree/archive/v1-qemu-spice-qt) branch.
+
+## Security and research scope
+
+The releasable baseline is a transparent, detectable Android lab substrate. The default package must not ship hidden instrumentation, integrity bypasses, fingerprint spoofing or anti-cheat evasion; the proof collector records exposed properties instead of concealing them. Any research helper for owned-lab use must be a separate opt-in artifact with explicit risk labels.
+
+## License
+
+[MIT](./LICENSE). Analysis capabilities are intended for educational and security-research purposes only.
